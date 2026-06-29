@@ -1,5 +1,7 @@
 # XoSo Stats — CLAUDE.md
 
+## dự án thống kê bở claude
+
 ## Tổng quan dự án
 
 Ứng dụng web phân tích kết quả xổ số Việt Nam. Người dùng nhập kết quả từng kỳ (tay hoặc CSV), app thống kê tần suất xuất hiện của 100 cặp số (00–99) theo các giải, hiển thị xu hướng theo tháng.
