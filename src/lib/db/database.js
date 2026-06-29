@@ -1,23 +1,39 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { mkdirSync } from 'fs';
+import { dirname, join } from 'path';
 
-// process.cwd() luôn trỏ đến thư mục gốc project khi chạy npm run dev
-const DB_PATH = join(process.cwd(), 'data', 'xoso.db');
-const MIGRATION_PATH = join(process.cwd(), 'src', 'lib', 'db', 'migrations', '001_init.sql');
+// DATABASE_PATH env var lets Railway (or any host) point to a persistent volume.
+// Default: ./data/xoso.db relative to CWD (works for local dev and Railway without volume).
+const DB_PATH = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'xoso.db');
 
-// Singleton: mở kết nối một lần, dùng chung
+const MIGRATION_SQL = `
+CREATE TABLE IF NOT EXISTS draws (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  draw_date   TEXT NOT NULL,
+  province    TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS results (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  draw_id     INTEGER NOT NULL REFERENCES draws(id) ON DELETE CASCADE,
+  prize_name  TEXT NOT NULL,
+  value       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_draws_date ON draws(draw_date);
+CREATE INDEX IF NOT EXISTS idx_results_draw ON results(draw_id);
+`;
+
 let _db;
 
 export function getDb() {
   if (!_db) {
+    mkdirSync(dirname(DB_PATH), { recursive: true });
     _db = new Database(DB_PATH);
-    _db.pragma('journal_mode = WAL'); // Tăng tốc đọc/ghi đồng thời
-    _db.pragma('foreign_keys = ON');  // Bắt buộc kiểm tra khóa ngoại
-
-    // Chạy migration nếu bảng chưa tồn tại
-    const migration = readFileSync(MIGRATION_PATH, 'utf-8');
-    _db.exec(migration);
+    _db.pragma('journal_mode = WAL');
+    _db.pragma('foreign_keys = ON');
+    _db.exec(MIGRATION_SQL);
   }
   return _db;
 }

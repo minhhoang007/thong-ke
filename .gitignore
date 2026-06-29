@@ -1,5 +1,8 @@
 node_modules
 
+# SQLite database (dữ liệu local)
+/data/
+
 # Output
 .output
 .vercel
