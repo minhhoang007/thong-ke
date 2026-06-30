@@ -54,8 +54,8 @@ function fetchHtml(url, redirectCount = 0) {
       res.on('error', reject);
     });
 
-    // Cho phép cấu hình qua env var — production xa server VN cần timeout cao hơn
-    const timeoutMs = parseInt(process.env.SCRAPE_TIMEOUT_MS ?? '20000');
+    // Cho phép cấu hình qua env var — giảm xuống 10s để race nhanh hơn
+    const timeoutMs = parseInt(process.env.SCRAPE_TIMEOUT_MS ?? '10000');
     req.on('error', reject);
     req.setTimeout(timeoutMs, () => { req.destroy(new Error(`Timeout ${timeoutMs}ms`)); });
     req.end();
@@ -259,54 +259,40 @@ const SOURCES = [
 
 // ─── API công khai ─────────────────────────────────────────────────────────────
 
+/** Scrape 1 nguồn — reject nếu fetch lỗi hoặc không tìm thấy dữ liệu. */
+async function scrapeSource(src, province, date) {
+  const url    = src.buildUrl(province, date);
+  const html   = await fetchHtml(url);
+  const parsed = src.parse(html, province);
+  if (parsed.foundCount === 0) throw new Error('Không tìm thấy dữ liệu giải');
+  return {
+    success:     true,
+    prizes:      parsed.prizes,
+    source:      src.name,
+    sourceLabel: src.label,
+    sourceUrl:   url,
+    partial:     parsed.foundCount < parsed.totalPrizes,
+    foundCount:  parsed.foundCount,
+    totalPrizes: parsed.totalPrizes,
+  };
+}
+
 /**
- * Scrape kết quả xổ số với fallback tự động qua nhiều nguồn.
- * @param {string} province  'mien-bac' | 'mien-trung' | 'mien-nam'
- * @param {string|null} date 'YYYY-MM-DD' hoặc null = hôm nay
- * @returns {{ success, prizes?, source?, sourceLabel?, sourceUrl?, partial?, errors? }}
+ * Scrape kết quả xổ số — race 3 nguồn song song, lấy nguồn nào trả về trước.
+ * @param {string}      province  'mien-bac' | 'mien-trung' | 'mien-nam'
+ * @param {string|null} date      'YYYY-MM-DD' hoặc null = hôm nay
  */
 export async function scrapeResult(province = 'mien-bac', date = null) {
-  const errors = [];
-
-  for (const src of SOURCES) {
-    const url = src.buildUrl(province, date);
-    let html;
-    try {
-      html = await fetchHtml(url);
-    } catch (err) {
-      errors.push({ source: src.name, error: `Fetch thất bại: ${err.message}`, url });
-      continue;
-    }
-
-    let parsed;
-    try {
-      parsed = src.parse(html, province);
-    } catch (err) {
-      errors.push({ source: src.name, error: `Parse lỗi: ${err.message}`, url });
-      continue;
-    }
-
-    if (parsed.foundCount === 0) {
-      errors.push({ source: src.name, error: 'Không tìm thấy dữ liệu giải (chưa có KQ hoặc cấu trúc HTML đổi)', url });
-      continue;
-    }
-
-    return {
-      success:     true,
-      prizes:      parsed.prizes,
-      source:      src.name,
-      sourceLabel: src.label,
-      sourceUrl:   url,
-      partial:     parsed.foundCount < parsed.totalPrizes,
-      foundCount:  parsed.foundCount,
-      totalPrizes: parsed.totalPrizes,
-    };
+  try {
+    return await Promise.any(SOURCES.map(src => scrapeSource(src, province, date)));
+  } catch (err) {
+    // AggregateError — tất cả nguồn đều thất bại
+    const errors = (err.errors ?? []).map((e, i) => ({
+      source: SOURCES[i]?.name,
+      error:  e.message,
+      url:    SOURCES[i]?.buildUrl(province, date),
+    }));
+    return { success: false, error: `Tất cả ${SOURCES.length} nguồn đều thất bại`, errors };
   }
-
-  return {
-    success: false,
-    error:   `Tất cả ${SOURCES.length} nguồn đều thất bại`,
-    errors,
-  };
 }
 

@@ -1,12 +1,9 @@
 import { scrapeResult } from '$lib/logic/scraper.js';
 import { saveDraw, findDraw } from '$lib/db/queries/results.js';
+import { nowVN, todayVN } from '$lib/utils/time.js';
 
 const SCRAPE_HOUR = 18;
 const SCRAPE_MIN  = 45;
-const VN_OFFSET   = 7 * 3600 * 1000;
-
-function nowVN()   { return new Date(Date.now() + VN_OFFSET); }
-function todayVN() { return nowVN().toISOString().slice(0, 10); }
 
 function msUntilNext() {
   const vn   = nowVN();

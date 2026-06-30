@@ -17,7 +17,9 @@
     { href: '/cau-lo',    label: 'Cầu Lô' },
     { href: '/dan-de',    label: 'Dàn Đề' },
     { href: '/lich',      label: 'Lịch' },
-    { href: '/lich-su',   label: 'Lịch sử' },
+    { href: '/lich-su',    label: 'Lịch sử' },
+    { href: '/du-doan',    label: 'Dự Đoán' },
+    { href: '/nghien-cuu', label: 'Nghiên cứu' },
   ];
 
   let menuOpen = $state(false);
@@ -65,11 +67,12 @@
 
   <!-- Mobile dropdown -->
   {#if menuOpen}
-    <div class="md:hidden border-t border-blue-700 px-4 py-2">
+    <div class="md:hidden border-t border-blue-700 py-3">
       {#each NAV_LINKS as link}
         <a href={link.href} onclick={() => menuOpen = false}
-          class="block py-2.5 text-sm border-b border-blue-700/40 last:border-0
-                 opacity-90 hover:opacity-100 hover:text-blue-200">
+          class="block text-center text-base font-medium py-3.5
+                 border-b border-blue-700/30 last:border-0
+                 opacity-90 hover:opacity-100 hover:bg-blue-700/40 transition-colors">
           {link.label}
         </a>
       {/each}

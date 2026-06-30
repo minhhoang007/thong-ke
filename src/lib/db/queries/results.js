@@ -1,19 +1,22 @@
 import { getDb } from '../database.js';
+import { bust } from '../cache.js';
 
 export function saveDraw(draw_date, province, prizes) {
   const db = getDb();
-  return db.transaction(() => {
-    const { lastInsertRowid: drawId } = db
+  const drawId = db.transaction(() => {
+    const { lastInsertRowid: id } = db
       .prepare('INSERT INTO draws (draw_date, province) VALUES (?, ?)')
       .run(draw_date, province);
     const ins = db.prepare('INSERT INTO results (draw_id, prize_name, value) VALUES (?, ?, ?)');
     for (const [prizeName, values] of Object.entries(prizes)) {
       for (const val of (Array.isArray(values) ? values : [values])) {
-        if (val && val.trim()) ins.run(drawId, prizeName, val.trim());
+        if (val && val.trim()) ins.run(id, prizeName, val.trim());
       }
     }
-    return drawId;
+    return id;
   })();
+  bust(); // xóa toàn bộ cache stats
+  return drawId;
 }
 
 function getDrawResults(drawId) {
@@ -27,7 +30,9 @@ export function getLatestDraw() {
 }
 
 export function deleteDraw(id) {
-  return getDb().prepare('DELETE FROM draws WHERE id = ?').run(id);
+  const result = getDb().prepare('DELETE FROM draws WHERE id = ?').run(id);
+  bust();
+  return result;
 }
 
 export function countDraws() {
@@ -58,7 +63,7 @@ export function getDrawWithResults(id) {
 
 export function updateDraw(id, draw_date, province, prizes) {
   const db = getDb();
-  return db.transaction(() => {
+  const result = db.transaction(() => {
     db.prepare('UPDATE draws SET draw_date = ?, province = ? WHERE id = ?').run(draw_date, province, id);
     db.prepare('DELETE FROM results WHERE draw_id = ?').run(id);
     const ins = db.prepare('INSERT INTO results (draw_id, prize_name, value) VALUES (?, ?, ?)');
@@ -69,6 +74,8 @@ export function updateDraw(id, draw_date, province, prizes) {
     }
     return id;
   })();
+  bust();
+  return result;
 }
 
 export function getDrawsForMonth(year, month) {

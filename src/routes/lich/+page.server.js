@@ -1,11 +1,10 @@
 import { getDrawsForMonth } from '$lib/db/queries/results.js';
-
-const VN_OFFSET_MS = 7 * 3600 * 1000;
+import { nowVN } from '$lib/utils/time.js';
 
 export function load({ url }) {
-  const nowVN = new Date(Date.now() + VN_OFFSET_MS);
-  const year  = parseInt(url.searchParams.get('year'))  || nowVN.getUTCFullYear();
-  const month = parseInt(url.searchParams.get('month')) || nowVN.getUTCMonth() + 1;
+  const vn    = nowVN();
+  const year  = parseInt(url.searchParams.get('year'))  || vn.getUTCFullYear();
+  const month = parseInt(url.searchParams.get('month')) || vn.getUTCMonth() + 1;
 
   const draws = getDrawsForMonth(year, month);
 
