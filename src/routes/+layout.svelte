@@ -15,6 +15,7 @@
   <a href="/nhap-lieu" class="hover:underline text-sm">Nhập liệu</a>
   <a href="/thong-ke" class="hover:underline text-sm">Thống kê</a>
   <a href="/lo-gan" class="hover:underline text-sm">Lô Gan</a>
+  <a href="/cau-lo" class="hover:underline text-sm">Cầu Lô</a>
   <a href="/lich-su" class="hover:underline text-sm">Lịch sử</a>
 </nav>
 

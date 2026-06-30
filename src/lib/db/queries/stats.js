@@ -337,6 +337,98 @@ export function getSoiCauRecs(n = 5) {
     .slice(0, n);
 }
 
+// Cầu lô: cặp số đang xuất hiện LIÊN TIẾP nhiều kỳ gần nhất
+export function getCauLoStats() {
+  const db = getDb();
+  const totalDraws = db.prepare('SELECT COUNT(*) as n FROM draws').get().n;
+  if (totalDraws === 0) return { active: [], grid: [], totalDraws: 0 };
+
+  const draws = db.prepare('SELECT id, draw_date FROM draws ORDER BY draw_date DESC, id DESC').all();
+
+  const drawPairMap = new Map(draws.map(d => [d.id, new Set()]));
+  const rows = db.prepare(`
+    SELECT draw_id, SUBSTR(value, -2) as pair
+    FROM results
+    WHERE LENGTH(TRIM(value)) >= 2
+  `).all();
+  for (const { draw_id, pair } of rows) {
+    if (/^\d{2}$/.test(pair) && drawPairMap.has(draw_id)) {
+      drawPairMap.get(draw_id).add(pair);
+    }
+  }
+
+  const streakMap = {};
+  for (let i = 0; i < 100; i++) {
+    const pair = String(i).padStart(2, '0');
+    let streak = 0;
+    const dates = [];
+    for (const draw of draws) {
+      if (drawPairMap.get(draw.id)?.has(pair)) {
+        streak++;
+        dates.push(draw.draw_date);
+      } else {
+        break;
+      }
+    }
+    streakMap[pair] = { streak, dates };
+  }
+
+  const active = Object.entries(streakMap)
+    .filter(([, v]) => v.streak >= 2)
+    .map(([pair, v]) => ({ pair, ...v }))
+    .sort((a, b) => b.streak - a.streak);
+
+  const grid = [];
+  for (let row = 0; row < 10; row++) {
+    grid.push([]);
+    for (let col = 0; col < 10; col++) {
+      const pair = String(row * 10 + col).padStart(2, '0');
+      grid[row].push({ pair, ...streakMap[pair] });
+    }
+  }
+
+  return { active, grid, totalDraws };
+}
+
+// So sánh tần suất 7 kỳ vs 30 kỳ gần nhất — phát hiện cặp đang tăng/giảm
+export function getFrequencyComparison() {
+  const db = getDb();
+
+  const ids30 = db.prepare('SELECT id FROM draws ORDER BY draw_date DESC LIMIT 30').all().map(r => r.id);
+  const ids7  = ids30.slice(0, 7);
+
+  if (ids30.length < 2) return { moversUp: [], moversDown: [], n7: 0, n30: 0 };
+
+  function countPairs(ids) {
+    if (ids.length === 0) return {};
+    const ph   = ids.map(() => '?').join(',');
+    const rows = db.prepare(
+      `SELECT SUBSTR(value, -2) as pair FROM results WHERE draw_id IN (${ph})`
+    ).all(...ids);
+    const freq = {};
+    for (let i = 0; i < 100; i++) freq[String(i).padStart(2, '0')] = 0;
+    for (const { pair } of rows) {
+      if (/^\d{2}$/.test(pair)) freq[pair]++;
+    }
+    return freq;
+  }
+
+  const freq30 = countPairs(ids30);
+  const freq7  = countPairs(ids7);
+
+  const comparison = Object.keys(freq30).map(pair => {
+    const rate30 = freq30[pair] / ids30.length;
+    const rate7  = freq7[pair]  / (ids7.length || 1);
+    const diff   = rate7 - rate30;
+    return { pair, count7: freq7[pair], count30: freq30[pair], rate7, rate30, diff };
+  });
+
+  const moversUp   = comparison.filter(r => r.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, 8);
+  const moversDown = comparison.filter(r => r.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, 8);
+
+  return { moversUp, moversDown, n7: ids7.length, n30: ids30.length };
+}
+
 // Xu hướng top N cặp qua các tháng (tối đa 12 tháng gần nhất)
 export function getTrendData(topN = 5) {
   const db = getDb();

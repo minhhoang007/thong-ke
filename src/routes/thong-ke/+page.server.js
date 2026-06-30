@@ -1,4 +1,4 @@
-import { getFrequencyStats, getAvailablePeriods, getTrendData, getHotColdData, getPairCoOccurrence, getDauDuoiStats, getTongGDBStats } from '$lib/db/queries/stats.js';
+import { getFrequencyStats, getAvailablePeriods, getTrendData, getHotColdData, getPairCoOccurrence, getDauDuoiStats, getTongGDBStats, getFrequencyComparison } from '$lib/db/queries/stats.js';
 
 export function load({ url }) {
   const year  = url.searchParams.get('year')  || null;
@@ -12,6 +12,7 @@ export function load({ url }) {
   const coOccurrence = getPairCoOccurrence(20, prize);
   const dauDuoi      = getDauDuoiStats(year, month);
   const tongGDB      = getTongGDBStats(year, month);
+  const comparison   = getFrequencyComparison();
 
-  return { ...stats, periods, trend, hotCold, coOccurrence, dauDuoi, tongGDB, filterYear: year, filterMonth: month, filterPrize: prize };
+  return { ...stats, periods, trend, hotCold, coOccurrence, dauDuoi, tongGDB, comparison, filterYear: year, filterMonth: month, filterPrize: prize };
 }

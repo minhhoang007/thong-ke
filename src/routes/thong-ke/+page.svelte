@@ -321,6 +321,94 @@
   </div>
 {/if}
 
+<!-- ── Section Biến động 7 ngày vs 30 kỳ ── -->
+{#if data.comparison.n30 >= 7}
+  <div class="border-t pt-6 mb-8">
+    <div class="flex items-baseline gap-3 mb-1">
+      <h2 class="text-lg font-bold text-gray-700">Biến động gần đây</h2>
+      <span class="text-xs text-gray-400">7 kỳ vs 30 kỳ gần nhất</span>
+    </div>
+    <p class="text-xs text-gray-400 mb-4">
+      So sánh tỷ lệ xuất hiện trong <strong>7 kỳ gần nhất</strong> với nền 30 kỳ.
+      Cặp <span class="text-green-600 font-medium">Tăng</span> đang ra nhiều hơn bình thường gần đây —
+      cặp <span class="text-red-500 font-medium">Giảm</span> đang "lạnh" hơn so với 1 tháng trước.
+    </p>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+      <!-- Tăng -->
+      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-4 py-3 border-b bg-green-50 flex items-center gap-2">
+          <span class="text-green-700 font-semibold text-sm">↑ Tăng mạnh nhất</span>
+          <span class="text-xs text-green-400 ml-auto">7 kỳ / 30 kỳ</span>
+        </div>
+        <div class="divide-y">
+          {#each data.comparison.moversUp as item}
+            <div class="px-4 py-2.5 flex items-center gap-3">
+              <span class="font-mono font-bold text-lg text-green-700 w-10 shrink-0">{item.pair}</span>
+              <div class="flex-1">
+                <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                  <span class="text-green-600 font-medium">{item.count7}x</span>
+                  <span class="text-gray-300">/7 kỳ</span>
+                  <span class="mx-1 text-gray-300">·</span>
+                  <span>{item.count30}x</span>
+                  <span class="text-gray-300">/30 kỳ</span>
+                </div>
+                <div class="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                  <div class="h-full rounded-full bg-green-400 transition-all"
+                    style="width: {Math.min(100, (item.rate7 / Math.max(...data.comparison.moversUp.map(m => m.rate7), 0.01)) * 100).toFixed(1)}%">
+                  </div>
+                </div>
+              </div>
+              <span class="text-xs text-green-600 font-semibold w-16 text-right shrink-0">
+                +{(item.diff * 100).toFixed(1)}%
+              </span>
+            </div>
+          {/each}
+          {#if data.comparison.moversUp.length === 0}
+            <p class="px-4 py-3 text-sm text-gray-400">Không có cặp tăng.</p>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Giảm -->
+      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-4 py-3 border-b bg-red-50 flex items-center gap-2">
+          <span class="text-red-600 font-semibold text-sm">↓ Giảm mạnh nhất</span>
+          <span class="text-xs text-red-400 ml-auto">7 kỳ / 30 kỳ</span>
+        </div>
+        <div class="divide-y">
+          {#each data.comparison.moversDown as item}
+            <div class="px-4 py-2.5 flex items-center gap-3">
+              <span class="font-mono font-bold text-lg text-red-600 w-10 shrink-0">{item.pair}</span>
+              <div class="flex-1">
+                <div class="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                  <span class="text-red-500 font-medium">{item.count7}x</span>
+                  <span class="text-gray-300">/7 kỳ</span>
+                  <span class="mx-1 text-gray-300">·</span>
+                  <span>{item.count30}x</span>
+                  <span class="text-gray-300">/30 kỳ</span>
+                </div>
+                <div class="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                  <div class="h-full rounded-full bg-red-300 transition-all"
+                    style="width: {Math.min(100, (item.count30 / Math.max(...data.comparison.moversDown.map(m => m.count30), 1)) * 100).toFixed(1)}%">
+                  </div>
+                </div>
+              </div>
+              <span class="text-xs text-red-500 font-semibold w-16 text-right shrink-0">
+                {(item.diff * 100).toFixed(1)}%
+              </span>
+            </div>
+          {/each}
+          {#if data.comparison.moversDown.length === 0}
+            <p class="px-4 py-3 text-sm text-gray-400">Không có cặp giảm.</p>
+          {/if}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- ── Section Đầu / Đuôi ── -->
 {#if data.dauDuoi.total > 0}
   <div class="border-t pt-6 mb-8">

@@ -16,9 +16,62 @@
     giai_sau:  'Giải sáu',
     giai_bay:  'Giải bảy',
   };
+
+  // Scrape hôm nay
+  let scrapeStatus  = $state('idle'); // idle | loading | done | error
+  let scrapeResults = $state([]);
+
+  async function handleDailyScrape() {
+    scrapeStatus = 'loading';
+    try {
+      const res  = await fetch('/api/daily-scrape', { method: 'POST' });
+      const json = await res.json();
+      scrapeResults = json.results ?? [];
+      scrapeStatus  = 'done';
+    } catch {
+      scrapeStatus = 'error';
+    }
+  }
 </script>
 
-<h1 class="text-2xl font-bold mb-6 text-gray-800">Tổng quan</h1>
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+  <h1 class="text-2xl font-bold text-gray-800">Tổng quan</h1>
+
+  <!-- Scrape hôm nay -->
+  <div class="flex items-center gap-3">
+    <button onclick={handleDailyScrape}
+      disabled={scrapeStatus === 'loading'}
+      class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
+             {scrapeStatus === 'loading'
+               ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+               : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
+      {#if scrapeStatus === 'loading'}
+        <span class="animate-spin text-base">⟳</span> Đang cập nhật...
+      {:else}
+        ↓ Cập nhật kết quả hôm nay
+      {/if}
+    </button>
+
+    {#if scrapeStatus === 'done'}
+      <div class="text-xs text-gray-500 flex flex-col gap-0.5">
+        {#each scrapeResults as r}
+          <span>
+            {r.date}:
+            {#if r.status === 'saved'}
+              <span class="text-green-600 font-medium">✓ Đã lưu</span>
+            {:else if r.status === 'skipped'}
+              <span class="text-gray-400">Đã có</span>
+            {:else}
+              <span class="text-orange-500">Không có dữ liệu</span>
+            {/if}
+          </span>
+        {/each}
+      </div>
+    {:else if scrapeStatus === 'error'}
+      <span class="text-xs text-red-500">Lỗi kết nối</span>
+    {/if}
+  </div>
+</div>
 
 <!-- 4 ô thống kê -->
 <div class="grid grid-cols-2 gap-4 mb-8 md:grid-cols-4">
