@@ -18,7 +18,7 @@
   ];
 
   // ── State chung ─────────────────────────────────────────────────
-  let activeTab = $state('manual'); // 'manual' | 'csv'
+  let activeTab = $state('manual'); // 'manual' | 'csv' | 'batch'
 
   // ── State nhập tay ──────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
@@ -112,6 +112,94 @@
   }
 
   const PROVINCE_LABEL = { 'mien-bac': 'Miền Bắc', 'mien-trung': 'Miền Trung', 'mien-nam': 'Miền Nam' };
+
+  // ── State Scrape hàng loạt ────────────────────────────────────────
+  const MAX_BATCH_DAYS = 60;
+  let batchProvince  = $state('mien-bac');
+  let batchFromDate  = $state((() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })());
+  let batchToDate    = $state(today);
+  let batchStatus    = $state('idle'); // 'idle' | 'running' | 'done'
+  let batchItems     = $state([]);    // { date, status: 'pending'|'saving'|'saved'|'skipped'|'error', message? }
+  let batchAborted   = $state(false);
+
+  function generateDateRange(from, to) {
+    const dates = [];
+    const end   = new Date(to);
+    let   cur   = new Date(from);
+    while (cur <= end && dates.length < MAX_BATCH_DAYS) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }
+
+  function batchDayCount() {
+    const from = new Date(batchFromDate);
+    const to   = new Date(batchToDate);
+    const diff = Math.round((to - from) / 86400000) + 1;
+    return Math.min(diff, MAX_BATCH_DAYS);
+  }
+
+  let batchDone   = $derived(batchItems.filter(i => i.status !== 'pending' && i.status !== 'saving').length);
+  let batchSaved  = $derived(batchItems.filter(i => i.status === 'saved').length);
+  let batchSkip   = $derived(batchItems.filter(i => i.status === 'skipped').length);
+  let batchErrors = $derived(batchItems.filter(i => i.status === 'error').length);
+
+  async function handleBatchScrape() {
+    batchAborted = false;
+    const dates  = generateDateRange(batchFromDate, batchToDate);
+    batchItems   = dates.map(date => ({ date, status: 'pending' }));
+    batchStatus  = 'running';
+
+    for (let i = 0; i < batchItems.length; i++) {
+      if (batchAborted) break;
+
+      batchItems[i] = { ...batchItems[i], status: 'saving' };
+      batchItems = [...batchItems];
+
+      try {
+        // 1. Scrape
+        const scrapeRes = await fetch(`/api/scrape?province=${batchProvince}&date=${batchItems[i].date}`);
+        const scrapeData = await scrapeRes.json();
+
+        if (!scrapeRes.ok) {
+          batchItems[i] = { ...batchItems[i], status: 'error', message: scrapeData.error || 'Lỗi scrape' };
+          batchItems = [...batchItems];
+          await new Promise(r => setTimeout(r, 200));
+          continue;
+        }
+
+        // 2. Lưu (bỏ qua nếu đã có)
+        const saveRes  = await fetch('/api/results', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draw_date: batchItems[i].date, province: batchProvince, prizes: scrapeData.prizes, skip_if_exists: true }),
+        });
+        const saveData = await saveRes.json();
+
+        if (saveData.skipped) {
+          batchItems[i] = { ...batchItems[i], status: 'skipped' };
+        } else if (saveRes.ok) {
+          batchItems[i] = { ...batchItems[i], status: 'saved', message: scrapeData.partial ? `⚠️ Thiếu ${scrapeData.totalPrizes - scrapeData.foundCount} giải` : undefined };
+        } else {
+          batchItems[i] = { ...batchItems[i], status: 'error', message: saveData.error || 'Lỗi lưu' };
+        }
+      } catch {
+        batchItems[i] = { ...batchItems[i], status: 'error', message: 'Mất kết nối' };
+      }
+
+      batchItems = [...batchItems];
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    batchStatus = 'done';
+  }
+
+  function resetBatch() {
+    batchStatus  = 'idle';
+    batchItems   = [];
+    batchAborted = false;
+  }
   const PRIZE_LABEL    = { giai_db:'Đặc biệt', giai_nhat:'Nhất', giai_nhi:'Nhì',
                            giai_ba:'Ba', giai_tu:'Tư', giai_nam:'Năm', giai_sau:'Sáu', giai_bay:'Bảy' };
 
@@ -152,7 +240,7 @@
 <h1 class="text-2xl font-bold mb-6 text-gray-800">Nhập kết quả xổ số</h1>
 
 <!-- Tab chọn chế độ -->
-<div class="flex gap-2 mb-6">
+<div class="flex gap-2 mb-6 flex-wrap">
   <button onclick={() => activeTab = 'manual'}
     class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
            {activeTab === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
@@ -162,6 +250,11 @@
     class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
            {activeTab === 'csv' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
     Import CSV
+  </button>
+  <button onclick={() => activeTab = 'batch'}
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+           {activeTab === 'batch' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+    Scrape hàng loạt
   </button>
 </div>
 
@@ -309,5 +402,112 @@
       {csvStatus === 'loading' ? 'Đang nhập...' : `Nhập tất cả ${csvDraws.length} kỳ`}
     </button>
   {/if}
+
+{:else if activeTab === 'batch'}
+
+<!-- ───── TAB SCRAPE HÀNG LOẠT ───── -->
+<div class="bg-white border rounded-xl p-6 shadow-sm mb-4">
+  <h2 class="font-semibold text-gray-800 mb-1">Scrape kết quả tự động nhiều ngày</h2>
+  <p class="text-sm text-gray-500 mb-5">
+    Tự động lấy dữ liệu từ minhchinh.com và lưu vào database. Ngày đã có sẽ bỏ qua.
+    Tối đa {MAX_BATCH_DAYS} ngày mỗi lần.
+  </p>
+
+  {#if batchStatus === 'idle'}
+    <div class="flex gap-4 flex-wrap items-end mb-5">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Khu vực</label>
+        <select bind:value={batchProvince}
+          class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          <option value="mien-bac">Miền Bắc</option>
+          <option value="mien-trung">Miền Trung</option>
+          <option value="mien-nam">Miền Nam</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
+        <input type="date" bind:value={batchFromDate} max={batchToDate}
+          class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
+        <input type="date" bind:value={batchToDate} min={batchFromDate} max={today}
+          class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+      </div>
+    </div>
+    {#if batchProvince !== 'mien-bac'}
+      <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+        ⚠️ Miền Trung và Miền Nam có thể không parse được đầy đủ do mỗi ngày có nhiều tỉnh. Khuyến nghị dùng Miền Bắc.
+      </div>
+    {/if}
+    <button onclick={handleBatchScrape}
+      class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+      Bắt đầu scrape {batchDayCount()} ngày
+    </button>
+
+  {:else}
+    <!-- Progress header -->
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm">
+        {#if batchStatus === 'running'}
+          <span class="font-medium text-indigo-700">⏳ Đang scrape… {batchDone}/{batchItems.length}</span>
+        {:else}
+          <span class="font-medium text-green-700">✅ Hoàn thành {batchItems.length} ngày</span>
+        {/if}
+      </div>
+      <div class="flex gap-3 text-xs">
+        {#if batchSaved > 0}<span class="text-green-600 font-medium">+{batchSaved} lưu mới</span>{/if}
+        {#if batchSkip > 0}<span class="text-gray-500">⏭ {batchSkip} bỏ qua</span>{/if}
+        {#if batchErrors > 0}<span class="text-red-600 font-medium">✗ {batchErrors} lỗi</span>{/if}
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="h-2 bg-gray-100 rounded-full mb-4 overflow-hidden">
+      <div class="h-full bg-indigo-500 rounded-full transition-all duration-300"
+           style="width: {batchItems.length ? (batchDone / batchItems.length * 100).toFixed(1) : 0}%"></div>
+    </div>
+
+    <!-- Item list -->
+    <div class="border rounded-lg overflow-hidden max-h-80 overflow-y-auto divide-y text-sm">
+      {#each batchItems as item}
+        <div class="flex items-center gap-3 px-4 py-2
+          {item.status === 'saved'    ? 'bg-green-50'
+           : item.status === 'skipped' ? 'bg-gray-50'
+           : item.status === 'error'   ? 'bg-red-50'
+           : item.status === 'saving'  ? 'bg-indigo-50'
+           : 'bg-white'}">
+          <span class="w-5 text-center shrink-0">
+            {#if item.status === 'saved'}✅
+            {:else if item.status === 'skipped'}⏭️
+            {:else if item.status === 'error'}❌
+            {:else if item.status === 'saving'}⏳
+            {:else}·{/if}
+          </span>
+          <span class="font-mono text-gray-700 w-28 shrink-0">{item.date}</span>
+          <span class="text-gray-500 text-xs">
+            {#if item.status === 'saved'}Đã lưu{item.message ? ` — ${item.message}` : ''}
+            {:else if item.status === 'skipped'}Đã có, bỏ qua
+            {:else if item.status === 'error'}Lỗi: {item.message}
+            {:else if item.status === 'saving'}Đang lấy…
+            {:else}Chờ{/if}
+          </span>
+        </div>
+      {/each}
+    </div>
+
+    {#if batchStatus === 'running'}
+      <button onclick={() => batchAborted = true}
+        class="mt-4 px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors">
+        Dừng lại
+      </button>
+    {:else}
+      <button onclick={resetBatch}
+        class="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+        Scrape tiếp
+      </button>
+    {/if}
+  {/if}
+</div>
 
 {/if}

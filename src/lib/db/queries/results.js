@@ -113,6 +113,12 @@ export function updateDraw(id, draw_date, province, prizes) {
   })();
 }
 
+// Kiểm tra xem kỳ (date, province) đã tồn tại chưa
+export function findDraw(draw_date, province) {
+  const db = getDb();
+  return db.prepare('SELECT id FROM draws WHERE draw_date = ? AND province = ?').get(draw_date, province) ?? null;
+}
+
 // Lưu nhiều kỳ cùng lúc trong 1 transaction (dùng cho CSV import)
 export function saveDrawsBatch(drawList) {
   const db = getDb();
