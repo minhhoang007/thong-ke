@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Dashboard — XoSo Stats</title>
+  <title>Dashboard — Times</title>
 </svelte:head>
 
 <script>
@@ -38,19 +38,29 @@
   <h1 class="text-2xl font-bold text-gray-800">Tổng quan</h1>
 
   <!-- Scrape hôm nay -->
-  <div class="flex items-center gap-3">
-    <button onclick={handleDailyScrape}
-      disabled={scrapeStatus === 'loading'}
-      class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
-             {scrapeStatus === 'loading'
-               ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
-               : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
-      {#if scrapeStatus === 'loading'}
-        <span class="animate-spin text-base">⟳</span> Đang cập nhật...
-      {:else}
-        ↓ Cập nhật kết quả hôm nay
-      {/if}
-    </button>
+  <div class="flex items-center gap-3 flex-wrap">
+    {#if data.todayInDb}
+      <span class="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 font-medium">
+        ✓ Đã có kết quả {data.todayVN}
+      </span>
+    {:else if !data.resultsAvailable}
+      <span class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+        Kết quả {data.todayVN} chưa có — xổ số XSMB công bố sau 18:35 (giờ VN)
+      </span>
+    {:else}
+      <button onclick={handleDailyScrape}
+        disabled={scrapeStatus === 'loading'}
+        class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
+               {scrapeStatus === 'loading'
+                 ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                 : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
+        {#if scrapeStatus === 'loading'}
+          <span class="animate-spin text-base">⟳</span> Đang cập nhật...
+        {:else}
+          ↓ Cập nhật kết quả hôm nay
+        {/if}
+      </button>
+    {/if}
 
     {#if scrapeStatus === 'done'}
       <div class="text-xs text-gray-500 flex flex-col gap-0.5">

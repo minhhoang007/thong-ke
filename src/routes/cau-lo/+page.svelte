@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Cầu Lô — XoSo Stats</title>
+  <title>Cầu Lô — Times</title>
 </svelte:head>
 
 <script>

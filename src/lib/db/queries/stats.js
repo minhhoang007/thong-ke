@@ -390,6 +390,35 @@ export function getCauLoStats() {
   return { active, grid, totalDraws };
 }
 
+// Thống kê tần suất cho N kỳ gần nhất (không theo tháng)
+export function getFrequencyStatsForWindow(drawCount, prize = null) {
+  const db = getDb();
+  const recentIds = db.prepare('SELECT id FROM draws ORDER BY draw_date DESC LIMIT ?')
+    .all(drawCount).map(r => r.id);
+
+  if (recentIds.length === 0) {
+    return { totalDraws: 0, totalValues: 0, grid: buildGrid({}, 0), freqMap: {} };
+  }
+
+  const ph         = recentIds.map(() => '?').join(',');
+  const prizeWhere = prize && prize !== 'all' ? ' AND r.prize_name = ?' : '';
+  const params     = prize && prize !== 'all' ? [...recentIds, prize] : recentIds;
+
+  const values = db.prepare(
+    `SELECT r.value FROM results r WHERE r.draw_id IN (${ph})${prizeWhere}`
+  ).all(...params).map(r => getLast2(r.value)).filter(Boolean);
+
+  const freq = buildFrequencyMap(values);
+  const avg  = values.length / 100;
+
+  return {
+    totalDraws: recentIds.length,
+    totalValues: values.length,
+    grid: buildGrid(freq, avg),
+    freqMap: freq,
+  };
+}
+
 // So sánh tần suất 7 kỳ vs 30 kỳ gần nhất — phát hiện cặp đang tăng/giảm
 export function getFrequencyComparison() {
   const db = getDb();
@@ -426,7 +455,13 @@ export function getFrequencyComparison() {
   const moversUp   = comparison.filter(r => r.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, 8);
   const moversDown = comparison.filter(r => r.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, 8);
 
-  return { moversUp, moversDown, n7: ids7.length, n30: ids30.length };
+  // trendMap: pair → 'up' | 'down' | 'stable' — dùng cho mũi tên trong grid
+  const trendMap = {};
+  for (const r of comparison) {
+    trendMap[r.pair] = r.diff > 0.015 ? 'up' : r.diff < -0.015 ? 'down' : 'stable';
+  }
+
+  return { moversUp, moversDown, n7: ids7.length, n30: ids30.length, trendMap };
 }
 
 // Xu hướng top N cặp qua các tháng (tối đa 12 tháng gần nhất)

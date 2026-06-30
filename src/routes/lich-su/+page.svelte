@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Lịch sử — XoSo Stats</title>
+  <title>Lịch sử — Times</title>
 </svelte:head>
 
 <script>
@@ -74,6 +74,37 @@
     if (expandedId === id) { expandedId = null; expandedData = null; }
   }
 
+  // ── Tìm kiếm nâng cao ──
+  let searchFrom     = $state('');
+  let searchTo       = $state('');
+  let searchPair     = $state('');
+  let searchProvince = $state('');
+  let searchResults  = $state(null); // null = chưa tìm, [] = không thấy, [...] = có kết quả
+  let searching      = $state(false);
+
+  async function handleSearch() {
+    const pair = searchPair.trim();
+    if (pair && !/^\d{2}$/.test(pair)) { alert('Cặp số phải đúng 2 chữ số (00–99)'); return; }
+    if (!searchFrom && !searchTo && !pair && !searchProvince) {
+      alert('Nhập ít nhất 1 điều kiện tìm kiếm'); return;
+    }
+    searching = true;
+    const params = new URLSearchParams();
+    if (searchFrom)    params.set('from', searchFrom);
+    if (searchTo)      params.set('to', searchTo);
+    if (pair)          params.set('pair', pair);
+    if (searchProvince) params.set('province', searchProvince);
+    const res  = await fetch(`/api/results/search?${params}`);
+    const json = await res.json();
+    searchResults = json.draws ?? [];
+    searching = false;
+  }
+
+  function clearSearch() {
+    searchFrom = searchTo = searchPair = searchProvince = '';
+    searchResults = null;
+  }
+
   // ── Chỉnh sửa ──
   let editingId     = $state(null);
   let editDate      = $state('');
@@ -145,14 +176,129 @@
   }
 </script>
 
-<div class="flex items-center justify-between mb-6">
+<div class="flex items-center justify-between mb-4">
   <h1 class="text-2xl font-bold text-gray-800">Lịch sử các kỳ xổ số</h1>
   <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
     {total} kỳ
   </span>
 </div>
 
-{#if draws.length === 0}
+<!-- Tìm kiếm nâng cao -->
+<div class="bg-white border rounded-xl shadow-sm mb-4 overflow-hidden">
+  <details>
+    <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-gray-700
+                    hover:bg-gray-50 select-none flex items-center gap-2 list-none">
+      <span class="text-gray-400">🔍</span>
+      Tìm kiếm nâng cao
+      {#if searchResults !== null}
+        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-1">
+          {searchResults.length} kết quả
+        </span>
+      {/if}
+    </summary>
+    <div class="px-4 pb-4 border-t">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Từ ngày</label>
+          <input type="date" bind:value={searchFrom}
+            class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Đến ngày</label>
+          <input type="date" bind:value={searchTo}
+            class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Cặp số kết thúc (00–99)</label>
+          <input type="text" inputmode="numeric" bind:value={searchPair} maxlength="2"
+            placeholder="vd: 73"
+            class="w-full border rounded-lg px-2 py-1.5 text-sm font-mono
+                   focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Khu vực</label>
+          <select bind:value={searchProvince}
+            class="w-full border rounded-lg px-2 py-1.5 text-sm bg-white
+                   focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="">Tất cả</option>
+            <option value="mien-bac">Miền Bắc</option>
+            <option value="mien-trung">Miền Trung</option>
+            <option value="mien-nam">Miền Nam</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-3 flex gap-2 items-center flex-wrap">
+        <button onclick={handleSearch} disabled={searching}
+          class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors
+                 {searching ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}">
+          {searching ? 'Đang tìm...' : 'Tìm kiếm'}
+        </button>
+        {#if searchResults !== null}
+          <button onclick={clearSearch}
+            class="px-4 py-2 rounded-lg text-sm border text-gray-600 hover:bg-gray-100">
+            Xóa kết quả
+          </button>
+          <span class="text-xs text-gray-400">
+            {searchResults.length > 0 ? `Tìm thấy ${searchResults.length} kỳ` : 'Không có kết quả'}
+          </span>
+        {/if}
+      </div>
+      <p class="text-xs text-gray-400 mt-2">
+        Ví dụ: tìm tất cả kỳ có cặp số kết thúc bằng <span class="font-mono font-bold">73</span>
+        trong tháng 6 → Từ ngày: 2026-06-01 · Đến ngày: 2026-06-30 · Cặp số: 73
+      </p>
+    </div>
+  </details>
+</div>
+
+<!-- Kết quả tìm kiếm -->
+{#if searchResults !== null}
+  {#if searchResults.length === 0}
+    <div class="bg-white border rounded-xl p-6 text-center shadow-sm">
+      <p class="text-gray-400 text-sm">Không tìm thấy kỳ nào khớp với điều kiện.</p>
+    </div>
+  {:else}
+    <div class="space-y-2 mb-4">
+      {#each searchResults as draw (draw.id)}
+        <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+          <div class="flex items-center gap-4 px-4 py-3">
+            <button onclick={() => toggleExpand(draw.id)} class="flex-1 flex items-center gap-4 text-left min-w-0">
+              <span class="text-base font-mono font-semibold text-blue-700 w-28 shrink-0">{draw.draw_date}</span>
+              <span class="text-sm text-gray-500 shrink-0">{PROVINCE_LABEL[draw.province] ?? draw.province}</span>
+              <span class="text-xs text-gray-400 ml-auto shrink-0">{draw.result_count} số</span>
+              <span class="text-gray-400 text-sm ml-2 shrink-0">{expandedId === draw.id ? '▲' : '▼'}</span>
+            </button>
+            <button onclick={() => handleDelete(draw.id, draw.draw_date)}
+              disabled={deletingId === draw.id}
+              class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500
+                     hover:bg-red-50 disabled:opacity-40 shrink-0">
+              {deletingId === draw.id ? '...' : 'Xóa'}
+            </button>
+          </div>
+          {#if expandedId === draw.id}
+            <div class="border-t bg-gray-50">
+              {#if !expandedData}
+                <p class="px-4 py-3 text-sm text-gray-400">Đang tải...</p>
+              {:else}
+                <div class="px-4 py-3">
+                  <div class="grid grid-cols-2 gap-x-8 gap-y-1 md:grid-cols-4 mb-3">
+                    {#each expandedData.results as r}
+                      <div class="flex items-center gap-2 text-sm">
+                        <span class="text-gray-400 w-16 shrink-0">{PRIZE_LABEL[r.prize_name] ?? r.prize_name}</span>
+                        <span class="font-mono font-medium text-gray-800">{r.value}</span>
+                        <span class="text-gray-300 text-xs">→{r.value.slice(-2)}</span>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
+{:else if draws.length === 0}
   <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
     <p class="text-gray-400 mb-3">Chưa có kỳ nào được nhập.</p>
     <a href="/nhap-lieu" class="text-blue-600 hover:underline text-sm">Nhập kỳ đầu tiên →</a>

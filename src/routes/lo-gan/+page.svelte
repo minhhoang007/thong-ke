@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Lô Gan — XoSo Stats</title>
+  <title>Lô Gan — Times</title>
 </svelte:head>
 
 <script>

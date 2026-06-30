@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Thống kê — XoSo Stats</title>
+  <title>Thống kê — Times</title>
 </svelte:head>
 
 <script>
@@ -43,9 +43,14 @@
     return `Tháng ${parseInt(m)}/${y}`;
   }
 
-  function buildUrl(period, prize) {
+  let selectedWindow = $derived(data.filterWindow ?? null);
+
+  // window và period là mutually exclusive: window xóa period và ngược lại
+  function buildUrl({ period, prize, win }) {
     const params = new URLSearchParams();
-    if (period) {
+    if (win) {
+      params.set('window', win);
+    } else if (period) {
       const [y, m] = period.split('-');
       params.set('year', y);
       params.set('month', m);
@@ -56,17 +61,36 @@
   }
 
   function onPeriodChange(e) {
-    goto(buildUrl(e.target.value, selectedPrize));
+    goto(buildUrl({ period: e.target.value, prize: selectedPrize, win: null }));
   }
 
   function onPrizeChange(e) {
-    goto(buildUrl(selectedPeriod, e.target.value));
+    goto(buildUrl({ period: selectedPeriod, prize: e.target.value, win: selectedWindow }));
   }
+
+  function onWindowClick(w) {
+    goto(buildUrl({ period: null, prize: selectedPrize, win: selectedWindow === w ? null : w }));
+  }
+
+  const WINDOWS = [
+    { value: 7,  label: '7 kỳ' },
+    { value: 30, label: '30 kỳ' },
+    { value: 90, label: '90 kỳ' },
+  ];
 
   let prizeLabel = $derived(
     PRIZE_OPTIONS.find(o => o.value === selectedPrize)?.label ?? 'Tất cả giải'
   );
   let periodLabel = $derived(selectedPeriod ? formatPeriod(selectedPeriod) : '');
+
+  function trendArrow(pair) {
+    const t = data.comparison?.trendMap?.[pair];
+    return t === 'up' ? '↑' : t === 'down' ? '↓' : '';
+  }
+  function trendColor(pair) {
+    const t = data.comparison?.trendMap?.[pair];
+    return t === 'up' ? 'text-green-600' : t === 'down' ? 'text-red-500' : '';
+  }
 
   function exportUrl() {
     const p = new URLSearchParams();
@@ -92,7 +116,9 @@
     <div class="flex items-center gap-2">
       <label for="period-select" class="text-sm text-gray-500 shrink-0">Thời gian:</label>
       <select id="period-select" value={selectedPeriod} onchange={onPeriodChange}
-        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+        disabled={!!selectedWindow}
+        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white
+               disabled:opacity-40 disabled:cursor-not-allowed">
         <option value="">Toàn bộ</option>
         {#each data.periods as p}
           <option value={p}>{formatPeriod(p)}</option>
@@ -110,6 +136,30 @@
       </select>
     </div>
   </div>
+</div>
+
+<!-- Cửa sổ thời gian (N kỳ gần nhất) -->
+<div class="flex items-center gap-2 mb-3 flex-wrap">
+  <span class="text-xs text-gray-400 shrink-0">Cửa sổ:</span>
+  <button onclick={() => onWindowClick(null)}
+    class="text-xs px-3 py-1 rounded-full border transition-colors
+           {!selectedWindow ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 hover:bg-gray-100'}">
+    Tất cả
+  </button>
+  {#each WINDOWS as w}
+    <button onclick={() => onWindowClick(w.value)}
+      class="text-xs px-3 py-1 rounded-full border transition-colors
+             {selectedWindow === w.value ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 hover:bg-gray-100'}">
+      {w.label}
+    </button>
+  {/each}
+  {#if selectedWindow}
+    <span class="text-xs text-blue-500 ml-1">— {selectedWindow} kỳ gần nhất · bộ lọc tháng tạm dừng</span>
+  {/if}
+  <span class="ml-auto text-xs text-gray-300 flex items-center gap-1">
+    <span class="text-green-600 font-bold">↑</span> tăng so với TB 30 kỳ ·
+    <span class="text-red-500 font-bold">↓</span> giảm
+  </span>
 </div>
 
 <p class="text-sm text-gray-500 mb-6">
@@ -175,6 +225,9 @@
                 <div class="rounded-lg p-1.5 text-center {COLOR[cell.label]} min-w-[44px]">
                   <div class="text-sm font-mono leading-none">{cell.pair}</div>
                   <div class="text-xs leading-none mt-0.5 opacity-80">{cell.count}x</div>
+                  {#if trendArrow(cell.pair)}
+                    <div class="text-xs font-bold leading-none {trendColor(cell.pair)}">{trendArrow(cell.pair)}</div>
+                  {/if}
                 </div>
               </td>
             {/each}

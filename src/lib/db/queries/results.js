@@ -113,10 +113,52 @@ export function updateDraw(id, draw_date, province, prizes) {
   })();
 }
 
+// Lấy tất cả kỳ trong một tháng kèm cặp GĐB (dùng cho trang lịch)
+export function getDrawsForMonth(year, month) {
+  const db     = getDb();
+  const period = `${year}-${String(month).padStart(2, '0')}`;
+  return db.prepare(`
+    SELECT d.id, d.draw_date, d.province,
+           SUBSTR(r.value, -2) as gdb_pair
+    FROM draws d
+    LEFT JOIN results r ON r.draw_id = d.id AND r.prize_name = 'giai_db'
+    WHERE strftime('%Y-%m', d.draw_date) = ?
+    ORDER BY d.draw_date, d.province
+  `).all(period);
+}
+
 // Kiểm tra xem kỳ (date, province) đã tồn tại chưa
 export function findDraw(draw_date, province) {
   const db = getDb();
   return db.prepare('SELECT id FROM draws WHERE draw_date = ? AND province = ?').get(draw_date, province) ?? null;
+}
+
+// Tìm kiếm kỳ theo khoảng ngày, cặp số, và/hoặc tỉnh
+export function searchDraws({ fromDate, toDate, pair, province, limit = 100 } = {}) {
+  const db         = getDb();
+  const conditions = [];
+  const params     = [];
+
+  if (fromDate) { conditions.push('d.draw_date >= ?'); params.push(fromDate); }
+  if (toDate)   { conditions.push('d.draw_date <= ?'); params.push(toDate); }
+  if (province) { conditions.push('d.province = ?');   params.push(province); }
+  if (pair && /^\d{2}$/.test(pair)) {
+    conditions.push('d.id IN (SELECT draw_id FROM results WHERE SUBSTR(value, -2) = ?)');
+    params.push(pair);
+  }
+
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+
+  return db.prepare(`
+    SELECT d.id, d.draw_date, d.province,
+           COUNT(r.id) as result_count
+    FROM draws d
+    LEFT JOIN results r ON r.draw_id = d.id
+    ${where}
+    GROUP BY d.id
+    ORDER BY d.draw_date DESC
+    LIMIT ?
+  `).all(...params, limit);
 }
 
 // Lưu nhiều kỳ cùng lúc trong 1 transaction (dùng cho CSV import)

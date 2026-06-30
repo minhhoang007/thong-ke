@@ -3,22 +3,69 @@
   import '../app.css';
 
   let { children } = $props();
+
+  const NAV_LINKS = [
+    { href: '/',          label: 'Dashboard' },
+    { href: '/nhap-lieu', label: 'Nhập liệu' },
+    { href: '/thong-ke',  label: 'Thống kê' },
+    { href: '/lo-gan',    label: 'Lô Gan' },
+    { href: '/cau-lo',    label: 'Cầu Lô' },
+    { href: '/dan-de',    label: 'Dàn Đề' },
+    { href: '/lich',      label: 'Lịch' },
+    { href: '/lich-su',   label: 'Lịch sử' },
+  ];
+
+  let menuOpen = $state(false);
 </script>
 
 <svelte:head>
   <link rel="icon" href={favicon} />
 </svelte:head>
 
-<nav class="bg-blue-800 text-white px-6 py-4 flex gap-6 items-center shadow-md flex-wrap">
-  <span class="font-bold text-xl tracking-wide shrink-0">XoSo Stats</span>
-  <a href="/" class="hover:underline text-sm">Dashboard</a>
-  <a href="/nhap-lieu" class="hover:underline text-sm">Nhập liệu</a>
-  <a href="/thong-ke" class="hover:underline text-sm">Thống kê</a>
-  <a href="/lo-gan" class="hover:underline text-sm">Lô Gan</a>
-  <a href="/cau-lo" class="hover:underline text-sm">Cầu Lô</a>
-  <a href="/lich-su" class="hover:underline text-sm">Lịch sử</a>
+<nav class="bg-blue-800 text-white shadow-md">
+  <div class="px-4 py-3 flex items-center justify-between">
+    <a href="/" onclick={() => menuOpen = false}
+      class="font-bold text-xl tracking-wide shrink-0 hover:text-blue-200">
+      Times
+    </a>
+
+    <!-- Desktop links -->
+    <div class="hidden md:flex gap-5 items-center text-sm">
+      {#each NAV_LINKS as link}
+        <a href={link.href} class="hover:underline opacity-90 hover:opacity-100">{link.label}</a>
+      {/each}
+    </div>
+
+    <!-- Hamburger button (mobile only) -->
+    <button onclick={() => menuOpen = !menuOpen}
+      class="md:hidden p-2 rounded hover:bg-blue-700 transition-colors"
+      aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
+      {#if menuOpen}
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      {:else}
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      {/if}
+    </button>
+  </div>
+
+  <!-- Mobile dropdown -->
+  {#if menuOpen}
+    <div class="md:hidden border-t border-blue-700 px-4 py-2">
+      {#each NAV_LINKS as link}
+        <a href={link.href} onclick={() => menuOpen = false}
+          class="block py-2.5 text-sm border-b border-blue-700/40 last:border-0
+                 opacity-90 hover:opacity-100 hover:text-blue-200">
+          {link.label}
+        </a>
+      {/each}
+    </div>
+  {/if}
 </nav>
 
-<main class="p-6 max-w-5xl mx-auto">
+<main class="p-4 md:p-6 max-w-5xl mx-auto">
   {@render children()}
 </main>

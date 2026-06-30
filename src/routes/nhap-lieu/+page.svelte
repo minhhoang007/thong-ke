@@ -1,5 +1,5 @@
 <svelte:head>
-  <title>Nhập liệu — XoSo Stats</title>
+  <title>Nhập liệu — Times</title>
 </svelte:head>
 
 <script>
