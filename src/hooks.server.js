@@ -11,8 +11,9 @@ function todayVN() { return nowVN().toISOString().slice(0, 10); }
 function msUntilNext() {
   const vn   = nowVN();
   const next = new Date(vn);
-  next.setHours(SCRAPE_HOUR, SCRAPE_MIN, 0, 0);
-  if (vn >= next) next.setDate(next.getDate() + 1);
+  // Dùng setUTCHours vì nowVN() trả về Date "fake-UTC" (đã cộng +7h)
+  next.setUTCHours(SCRAPE_HOUR, SCRAPE_MIN, 0, 0);
+  if (vn >= next) next.setUTCDate(next.getUTCDate() + 1);
   return next.getTime() - vn.getTime();
 }
 
