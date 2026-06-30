@@ -17,14 +17,25 @@
     giai_bay:  'Giải bảy',
   };
 
-  // Scrape hôm nay
-  let scrapeStatus  = $state('idle'); // idle | loading | done | error
-  let scrapeResults = $state([]);
+  const PROVINCE_LABEL = {
+    'mien-bac':   'Miền Bắc',
+    'mien-trung': 'Miền Trung',
+    'mien-nam':   'Miền Nam',
+  };
+
+  // Scrape hôm nay — mặc định Miền Bắc, có thể mở rộng
+  let scrapeStatus    = $state('idle'); // idle | loading | done | error
+  let scrapeResults   = $state([]);
+  let scrapeProvinces = $state(['mien-bac']); // có thể tick thêm miền
 
   async function handleDailyScrape() {
     scrapeStatus = 'loading';
     try {
-      const res  = await fetch('/api/daily-scrape', { method: 'POST' });
+      const res  = await fetch('/api/daily-scrape', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ provinces: scrapeProvinces }),
+      });
       const json = await res.json();
       scrapeResults = json.results ?? [];
       scrapeStatus  = 'done';
@@ -48,31 +59,48 @@
         Kết quả {data.todayVN} chưa có — xổ số XSMB công bố sau 18:35 (giờ VN)
       </span>
     {:else}
-      <button onclick={handleDailyScrape}
-        disabled={scrapeStatus === 'loading'}
-        class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
-               {scrapeStatus === 'loading'
-                 ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
-                 : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
-        {#if scrapeStatus === 'loading'}
-          <span class="animate-spin text-base">⟳</span> Đang cập nhật...
-        {:else}
-          ↓ Cập nhật kết quả hôm nay
-        {/if}
-      </button>
+      <div class="flex flex-col gap-2 items-end">
+        <!-- Chọn miền -->
+        <div class="flex gap-3 text-xs text-gray-600">
+          {#each Object.entries(PROVINCE_LABEL) as [val, label]}
+            <label class="flex items-center gap-1 cursor-pointer select-none">
+              <input type="checkbox" bind:group={scrapeProvinces} value={val}
+                class="accent-blue-600" />
+              {label}
+            </label>
+          {/each}
+        </div>
+        <button onclick={handleDailyScrape}
+          disabled={scrapeStatus === 'loading' || scrapeProvinces.length === 0}
+          class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
+                 {scrapeStatus === 'loading' || scrapeProvinces.length === 0
+                   ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
+          {#if scrapeStatus === 'loading'}
+            <span class="animate-spin text-base">⟳</span> Đang cập nhật...
+          {:else}
+            ↓ Cập nhật kết quả hôm nay
+          {/if}
+        </button>
+      </div>
     {/if}
 
     {#if scrapeStatus === 'done'}
-      <div class="text-xs text-gray-500 flex flex-col gap-0.5">
+      <div class="text-xs text-gray-500 flex flex-col gap-1 mt-1">
         {#each scrapeResults as r}
-          <span>
-            {r.date}:
+          <span class="flex items-center gap-1.5">
+            <span class="text-gray-400">{r.date} · {PROVINCE_LABEL[r.province] ?? r.province}:</span>
             {#if r.status === 'saved'}
               <span class="text-green-600 font-medium">✓ Đã lưu</span>
+              {#if r.sourceLabel}
+                <span class="text-gray-400">({r.sourceLabel}{r.partial ? ', thiếu giải' : ''})</span>
+              {/if}
             {:else if r.status === 'skipped'}
               <span class="text-gray-400">Đã có</span>
+            {:else if r.status === 'no_data'}
+              <span class="text-orange-500">Chưa có kết quả</span>
             {:else}
-              <span class="text-orange-500">Không có dữ liệu</span>
+              <span class="text-red-500">Lỗi</span>
             {/if}
           </span>
         {/each}

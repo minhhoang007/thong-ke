@@ -1,74 +1,74 @@
 import { scrapeResult } from '$lib/logic/scraper.js';
 import { saveDraw, findDraw } from '$lib/db/queries/results.js';
 
-// Xổ số Miền Bắc mở thưởng ~18:15 VN — scrape lúc 18:35 để chắc có kết quả
-const SCRAPE_HOUR = 18;
-const SCRAPE_MIN  = 35;
-const VN_OFFSET_MS = 7 * 3600 * 1000; // UTC+7
+// Xổ số mở thưởng ~18:15 VN — scrape lúc 18:35 để chắc có kết quả
+const SCRAPE_HOUR  = 18;
+const SCRAPE_MIN   = 35;
+const VN_OFFSET_MS = 7 * 3600 * 1000;
 
-function nowVN() {
-  return new Date(Date.now() + VN_OFFSET_MS);
-}
+// Scrape cả 3 miền mỗi ngày
+const PROVINCES = ['mien-bac', 'mien-trung', 'mien-nam'];
 
-function todayVN() {
-  return nowVN().toISOString().slice(0, 10);
-}
+function nowVN()   { return new Date(Date.now() + VN_OFFSET_MS); }
+function todayVN() { return nowVN().toISOString().slice(0, 10); }
 
-// Số ms đến lần chạy tiếp theo (18:35 VN)
 function msUntilNextScrape() {
-  const vn    = nowVN();
+  const vn     = nowVN();
   const nextVN = new Date(vn);
   nextVN.setHours(SCRAPE_HOUR, SCRAPE_MIN, 0, 0);
   if (vn >= nextVN) nextVN.setDate(nextVN.getDate() + 1);
   return nextVN.getTime() - vn.getTime();
 }
 
+async function scrapeProvince(province, date, tag) {
+  if (findDraw(date, province)) {
+    console.log(tag, `${province} ${date} — đã có, bỏ qua.`);
+    return 'skipped';
+  }
+  try {
+    const result = await scrapeResult(province, date);
+    if (!result.success) {
+      console.error(tag, `${province} thất bại:`, result.error,
+        result.errors?.map(e => `[${e.source}] ${e.error}`).join(' | '));
+      return 'failed';
+    }
+    const drawId = saveDraw(date, province, result.prizes);
+    console.log(tag, `${province} ${date} — đã lưu (id:${drawId}, nguồn: ${result.sourceLabel}${result.partial ? ', thiếu giải' : ''})`);
+    return 'saved';
+  } catch (err) {
+    console.error(tag, `${province} exception:`, err.message);
+    return 'error';
+  }
+}
+
 async function runDailyScrape(label = 'scheduled') {
   const today = todayVN();
   const tag   = `[auto-scrape:${label}]`;
-
-  if (findDraw(today, 'mien-bac')) {
-    console.log(tag, 'Đã có dữ liệu Miền Bắc ngày', today, '— bỏ qua.');
-    return { status: 'skipped', date: today };
-  }
-
-  console.log(tag, 'Đang scrape Miền Bắc ngày', today, '...');
-  try {
-    const result = await scrapeResult('mien-bac', today);
-    if (!result.success) {
-      console.error(tag, 'Scrape thất bại:', result.error);
-      return { status: 'failed', date: today, error: result.error };
-    }
-    const drawId = saveDraw(today, 'mien-bac', result.prizes);
-    console.log(tag, `Đã lưu kỳ ${today} (drawId: ${drawId})`);
-    return { status: 'saved', date: today, drawId };
-  } catch (err) {
-    console.error(tag, 'Exception:', err.message);
-    return { status: 'error', date: today, error: err.message };
+  console.log(tag, `Bắt đầu scrape ${today} (${PROVINCES.length} miền)...`);
+  for (const province of PROVINCES) {
+    await scrapeProvince(province, today, tag);
   }
 }
 
 function scheduleScrape() {
   const delay    = msUntilNextScrape();
   const nextTime = new Date(Date.now() + delay).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
-  console.log(`[auto-scrape] Lịch scrape tiếp theo: ${nextTime} (sau ${Math.round(delay / 60000)} phút)`);
+  console.log(`[auto-scrape] Lịch tiếp theo: ${nextTime} (sau ${Math.round(delay / 60000)} phút)`);
 
   setTimeout(async () => {
     await runDailyScrape('scheduled');
-    scheduleScrape(); // lên lịch cho ngày hôm sau
+    scheduleScrape();
   }, delay);
 }
 
-// init() chạy một lần khi SvelteKit server khởi động
 export async function init() {
-  console.log('[auto-scrape] Khởi động scheduler (mỗi ngày lúc 18:35 VN)...');
+  console.log('[auto-scrape] Khởi động scheduler (18:35 VN, 3 miền)...');
 
-  // Catch-up: nếu server restart sau 18:35 VN và hôm nay chưa có dữ liệu
   const vn   = nowVN();
-  const hour = vn.getHours();
-  const min  = vn.getMinutes();
+  const hour = vn.getUTCHours(); // đã cộng offset trong nowVN()
+  const min  = vn.getUTCMinutes();
   if (hour > SCRAPE_HOUR || (hour === SCRAPE_HOUR && min >= SCRAPE_MIN)) {
-    console.log('[auto-scrape] Server khởi động sau 18:35 — chạy catch-up ngay...');
+    console.log('[auto-scrape] Server khởi động sau 18:35 — chạy catch-up...');
     await runDailyScrape('catchup');
   }
 

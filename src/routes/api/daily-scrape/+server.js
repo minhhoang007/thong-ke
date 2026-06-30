@@ -1,33 +1,60 @@
-import { json } from '@sveltejs/kit';
-import { scrapeResult } from '$lib/logic/scraper.js';
-import { saveDraw, findDraw } from '$lib/db/queries/results.js';
+import { json }                      from '@sveltejs/kit';
+import { scrapeResult }              from '$lib/logic/scraper.js';
+import { saveDraw, findDraw }        from '$lib/db/queries/results.js';
 
-// POST /api/daily-scrape
-// Tự động scrape hôm nay + hôm qua (Miền Bắc), bỏ qua nếu đã có
-export async function POST() {
-  // Giờ Việt Nam UTC+7
-  const nowVN = new Date(Date.now() + 7 * 3600 * 1000);
-  const todayVN     = nowVN.toISOString().slice(0, 10);
-  const yesterdayVN = new Date(nowVN - 86400000).toISOString().slice(0, 10);
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+
+function nowVN()     { return new Date(Date.now() + VN_OFFSET_MS); }
+function dateVN(d)   { return d.toISOString().slice(0, 10); }
+function yesterday(d){ return new Date(d - 86400000); }
+
+/**
+ * POST /api/daily-scrape
+ * Body (optional JSON): { provinces: ['mien-bac', 'mien-trung', 'mien-nam'] }
+ * Default: chỉ mien-bac.
+ * Luôn scrape hôm nay + hôm qua, bỏ qua nếu đã có.
+ */
+export async function POST({ request }) {
+  let body = {};
+  try { body = await request.json(); } catch { /* body trống hoặc không phải JSON */ }
+
+  const allProvinces = ['mien-bac', 'mien-trung', 'mien-nam'];
+  const requested    = Array.isArray(body?.provinces) ? body.provinces : ['mien-bac'];
+  const provinces    = requested.filter(p => allProvinces.includes(p));
+  if (provinces.length === 0) provinces.push('mien-bac');
+
+  const vn        = nowVN();
+  const todayVN   = dateVN(vn);
+  const yestVN    = dateVN(yesterday(vn));
+  const dates     = [todayVN, yestVN];
 
   const results = [];
 
-  for (const date of [todayVN, yesterdayVN]) {
-    const existing = findDraw(date, 'mien-bac');
-    if (existing) {
-      results.push({ date, status: 'skipped' });
-      continue;
-    }
-    try {
-      const scraped = await scrapeResult('mien-bac', date);
-      if (!scraped.success) {
-        results.push({ date, status: 'no_data', error: scraped.error });
+  for (const province of provinces) {
+    for (const date of dates) {
+      if (findDraw(date, province)) {
+        results.push({ date, province, status: 'skipped' });
         continue;
       }
-      const drawId = saveDraw(date, 'mien-bac', scraped.prizes);
-      results.push({ date, status: 'saved', drawId });
-    } catch (e) {
-      results.push({ date, status: 'error', error: String(e) });
+      try {
+        const scraped = await scrapeResult(province, date);
+        if (!scraped.success) {
+          results.push({ date, province, status: 'no_data', errors: scraped.errors });
+          continue;
+        }
+        const drawId = saveDraw(date, province, scraped.prizes);
+        results.push({
+          date,
+          province,
+          status:      'saved',
+          drawId,
+          source:      scraped.source,
+          sourceLabel: scraped.sourceLabel,
+          partial:     scraped.partial ?? false,
+        });
+      } catch (e) {
+        results.push({ date, province, status: 'error', error: String(e) });
+      }
     }
   }
 
