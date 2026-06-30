@@ -128,39 +128,47 @@ export function getHotColdData(recentN = 30, prize = null) {
 // Top N cặp số xuất hiện nhiều nhất (tất cả giải, không filter)
 export function getTopPairs(n = 5) {
   const db = getDb();
-  const allLast2 = db
-    .prepare('SELECT value FROM results')
-    .all()
-    .map(r => getLast2(r.value))
-    .filter(Boolean);
-
-  const freq = buildFrequencyMap(allLast2);
-  return Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n)
-    .map(([pair, count]) => ({ pair, count }));
+  return db.prepare(`
+    SELECT SUBSTR(value, -2) as pair, COUNT(*) as count
+    FROM results
+    WHERE LENGTH(TRIM(value)) >= 2
+      AND SUBSTR(value, -2) GLOB '[0-9][0-9]'
+    GROUP BY pair
+    ORDER BY count DESC
+    LIMIT ?
+  `).all(n);
 }
 
 // Thống kê co-occurrence: cặp đôi cùng xuất hiện trong 1 kỳ nhiều nhất
 // Trả về top N cặp đôi [a, b, count] với a < b
 export function getPairCoOccurrence(topN = 20, prize = null) {
   const db = getDb();
-  const prizeClause = prize && prize !== 'all' ? ' WHERE prize_name = ?' : '';
-  const prizeParam  = prize && prize !== 'all' ? [prize] : [];
+  const prizeWhere = prize && prize !== 'all' ? ' AND prize_name = ?' : '';
+  const params     = prize && prize !== 'all' ? [prize] : [];
 
-  const drawIds = db.prepare('SELECT id FROM draws').all().map(r => r.id);
-  if (drawIds.length === 0) return [];
+  // 1 query thay vì N queries (1 mỗi kỳ)
+  const rows = db.prepare(`
+    SELECT draw_id, SUBSTR(value, -2) as pair
+    FROM results
+    WHERE LENGTH(TRIM(value)) >= 2${prizeWhere}
+  `).all(...params);
+
+  if (rows.length === 0) return [];
+
+  // Group pairs theo draw_id
+  const drawPairs = {};
+  for (const { draw_id, pair } of rows) {
+    if (!/^\d{2}$/.test(pair)) continue;
+    if (!drawPairs[draw_id]) drawPairs[draw_id] = new Set();
+    drawPairs[draw_id].add(pair);
+  }
 
   const coMatrix = {};
-
-  for (const drawId of drawIds) {
-    const rows = db
-      .prepare(`SELECT value FROM results WHERE draw_id = ?${prizeClause.replace('WHERE', 'AND')}`)
-      .all(drawId, ...prizeParam);
-    const pairs = [...new Set(rows.map(r => getLast2(r.value)).filter(Boolean))];
-    for (let i = 0; i < pairs.length; i++) {
-      for (let j = i + 1; j < pairs.length; j++) {
-        const key = pairs[i] < pairs[j] ? `${pairs[i]}-${pairs[j]}` : `${pairs[j]}-${pairs[i]}`;
+  for (const pairSet of Object.values(drawPairs)) {
+    const arr = [...pairSet].sort();
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const key = `${arr[i]}-${arr[j]}`;
         coMatrix[key] = (coMatrix[key] || 0) + 1;
       }
     }
@@ -186,8 +194,19 @@ export function getLoGanStats() {
     GROUP BY SUBSTR(r.value, -2)
   `).all();
 
-  // Lấy toàn bộ ngày kỳ xổ (desc) để đếm "bao nhiêu kỳ sau last_date"
-  const allDates = db.prepare('SELECT draw_date FROM draws ORDER BY draw_date DESC').all().map(r => r.draw_date);
+  // Lấy toàn bộ ngày kỳ xổ (asc) để binary search "bao nhiêu kỳ sau last_date"
+  const allDatesAsc = db.prepare('SELECT draw_date FROM draws ORDER BY draw_date ASC').all().map(r => r.draw_date);
+
+  // Binary search: trả về số phần tử trong mảng đã sắp xếp tăng dần có giá trị > date
+  function countAfter(dates, date) {
+    let lo = 0, hi = dates.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (dates[mid] <= date) lo = mid + 1;
+      else hi = mid;
+    }
+    return dates.length - lo;
+  }
 
   const ganMap = {};
   for (let i = 0; i < 100; i++) {
@@ -196,7 +215,7 @@ export function getLoGanStats() {
 
   for (const { pair, last_date } of appeared) {
     if (!pair || pair.length !== 2 || !/^\d{2}$/.test(pair)) continue;
-    const gan = allDates.filter(d => d > last_date).length;
+    const gan = countAfter(allDatesAsc, last_date);
     ganMap[pair] = { gan, lastDate: last_date };
   }
 

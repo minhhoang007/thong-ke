@@ -21,8 +21,10 @@ CREATE TABLE IF NOT EXISTS results (
   value       TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_draws_date ON draws(draw_date);
-CREATE INDEX IF NOT EXISTS idx_results_draw ON results(draw_id);
+CREATE INDEX IF NOT EXISTS idx_draws_date     ON draws(draw_date);
+CREATE INDEX IF NOT EXISTS idx_draws_prov_date ON draws(province, draw_date);
+CREATE INDEX IF NOT EXISTS idx_results_draw    ON results(draw_id);
+CREATE INDEX IF NOT EXISTS idx_results_prize   ON results(prize_name);
 `;
 
 let _db;
