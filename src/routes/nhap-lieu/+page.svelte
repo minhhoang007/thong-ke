@@ -3,8 +3,6 @@
 </svelte:head>
 
 <script>
-  import { parseCSV, CSV_TEMPLATE } from '$lib/logic/csv-parser.js';
-
   // ── Cấu hình giải ──────────────────────────────────────────────
   const PRIZE_CONFIG = [
     { key: 'giai_db',   label: 'Giải đặc biệt', count: 1, digits: 5 },
@@ -18,12 +16,11 @@
   ];
 
   // ── State chung ─────────────────────────────────────────────────
-  let activeTab = $state('manual'); // 'manual' | 'csv' | 'batch'
+  let activeTab = $state('manual'); // 'manual' | 'batch'
 
   // ── State nhập tay ──────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
   let draw_date = $state(today);
-  let province  = $state('mien-bac');
   let prizes    = $state(Object.fromEntries(PRIZE_CONFIG.map(p => [p.key, Array(p.count).fill('')])));
   let manualStatus  = $state('idle');
   let manualMessage = $state('');
@@ -36,7 +33,7 @@
     }
     try {
       const res  = await fetch('/api/results', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                               body: JSON.stringify({ draw_date, province, prizes: prizesPayload }) });
+                               body: JSON.stringify({ draw_date, province: 'mien-bac', prizes: prizesPayload }) });
       const data = await res.json();
       if (res.ok) {
         manualStatus  = 'success';
@@ -60,67 +57,52 @@
     }
   }
 
-  // ── State CSV import ─────────────────────────────────────────────
-  let csvDraws   = $state([]);    // rows parsed từ file
-  let csvErrors  = $state([]);    // lỗi parse
-  let csvStatus  = $state('idle'); // 'idle' | 'loading' | 'success' | 'error'
-  let csvMessage = $state('');
-  let csvProgress = $state(0);
+  // ── Scrape tự động (nhập tay) ──────────────────────────────────
+  let scrapeStatus  = $state('idle'); // 'idle' | 'loading' | 'preview' | 'error'
+  let scrapeMessage = $state('');
+  let scrapePartial = $state(false);
 
-  function handleFileChange(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const { draws, errors } = parseCSV(e.target.result);
-      csvDraws  = draws;
-      csvErrors = errors;
-      csvStatus = 'idle';
-      csvMessage = '';
-    };
-    reader.readAsText(file, 'utf-8');
-  }
-
-  async function handleCSVImport() {
-    if (csvDraws.length === 0) return;
-    csvStatus = 'loading';
-    csvProgress = 0;
+  async function handleScrape() {
+    scrapeStatus  = 'loading';
+    scrapeMessage = '';
+    const dateParam = draw_date !== today ? `&date=${draw_date}` : '';
     try {
-      const res  = await fetch('/api/results/batch', { method: 'POST',
-                               headers: { 'Content-Type': 'application/json' },
-                               body: JSON.stringify({ draws: csvDraws }) });
+      const res  = await fetch(`/api/scrape?province=mien-bac${dateParam}`);
       const data = await res.json();
-      if (res.ok) {
-        csvStatus  = 'success';
-        csvMessage = `Đã nhập thành công ${data.count} kỳ xổ số.`;
-        csvDraws   = [];
-        csvErrors  = [];
-      } else {
-        csvStatus  = 'error';
-        csvMessage = data.error || 'Import thất bại.';
+      if (!res.ok) {
+        scrapeStatus  = 'error';
+        scrapeMessage = data.error || 'Lấy dữ liệu thất bại.';
+        return;
       }
+      for (const p of PRIZE_CONFIG) {
+        const val = data.prizes[p.key];
+        if (!val) continue;
+        prizes[p.key] = Array.isArray(val) ? val : [val];
+      }
+      scrapeStatus  = 'preview';
+      scrapePartial = data.partial;
+      scrapeMessage = data.partial
+        ? `Tìm được ${data.foundCount}/${data.totalPrizes} giải. Kiểm tra và điền các ô còn thiếu.`
+        : 'Đã lấy đủ kết quả. Kiểm tra lại rồi nhấn Lưu.';
     } catch {
-      csvStatus = 'error'; csvMessage = 'Không kết nối được server.';
+      scrapeStatus = 'error'; scrapeMessage = 'Không kết nối được server.';
     }
   }
 
-  function downloadTemplate() {
-    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a'); a.href = url; a.download = 'mau-xoso.csv';
-    a.click(); URL.revokeObjectURL(url);
-  }
-
-  const PROVINCE_LABEL = { 'mien-bac': 'Miền Bắc', 'mien-trung': 'Miền Trung', 'mien-nam': 'Miền Nam' };
-
   // ── State Scrape hàng loạt ────────────────────────────────────────
   const MAX_BATCH_DAYS = 60;
-  let batchProvince  = $state('mien-bac');
-  let batchFromDate  = $state((() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })());
-  let batchToDate    = $state(today);
-  let batchStatus    = $state('idle'); // 'idle' | 'running' | 'done'
-  let batchItems     = $state([]);    // { date, status: 'pending'|'saving'|'saved'|'skipped'|'error', message? }
-  let batchAborted   = $state(false);
+  let batchFromDate   = $state((() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })());
+  let batchToDate     = $state(today);
+  let batchCustomUrl  = $state('');
+  let batchStatus     = $state('idle'); // 'idle' | 'running' | 'done'
+  let batchItems      = $state([]);    // { date, status: 'pending'|'saving'|'saved'|'skipped'|'error', message? }
+  let batchAborted    = $state(false);
+
+  /** YYYY-MM-DD → DD-MM-YYYY (định dạng URL tiếng Việt) */
+  function toVnDate(isoDate) {
+    const [y, m, d] = isoDate.split('-');
+    return `${d}-${m}-${y}`;
+  }
 
   function generateDateRange(from, to) {
     const dates = [];
@@ -145,11 +127,18 @@
   let batchSkip   = $derived(batchItems.filter(i => i.status === 'skipped').length);
   let batchErrors = $derived(batchItems.filter(i => i.status === 'error').length);
 
+  let batchUrlPreview = $derived(() => {
+    const t = batchCustomUrl.trim();
+    if (!t || !batchFromDate) return '';
+    return t.replace('{date}', toVnDate(batchFromDate));
+  });
+
   async function handleBatchScrape() {
     batchAborted = false;
     const dates  = generateDateRange(batchFromDate, batchToDate);
     batchItems   = dates.map(date => ({ date, status: 'pending' }));
     batchStatus  = 'running';
+    const customTrimmed = batchCustomUrl.trim();
 
     for (let i = 0; i < batchItems.length; i++) {
       if (batchAborted) break;
@@ -159,7 +148,15 @@
 
       try {
         // 1. Scrape
-        const scrapeRes = await fetch(`/api/scrape?province=${batchProvince}&date=${batchItems[i].date}`);
+        let scrapeApiUrl;
+        if (customTrimmed) {
+          const resolvedUrl = customTrimmed.replace('{date}', toVnDate(batchItems[i].date));
+          scrapeApiUrl = `/api/scrape?scrapeUrl=${encodeURIComponent(resolvedUrl)}`;
+        } else {
+          scrapeApiUrl = `/api/scrape?province=mien-bac&date=${batchItems[i].date}`;
+        }
+
+        const scrapeRes  = await fetch(scrapeApiUrl);
         const scrapeData = await scrapeRes.json();
 
         if (!scrapeRes.ok) {
@@ -173,7 +170,7 @@
         const saveRes  = await fetch('/api/results', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ draw_date: batchItems[i].date, province: batchProvince, prizes: scrapeData.prizes, skip_if_exists: true }),
+          body: JSON.stringify({ draw_date: batchItems[i].date, province: 'mien-bac', prizes: scrapeData.prizes, skip_if_exists: true }),
         });
         const saveData = await saveRes.json();
 
@@ -200,41 +197,6 @@
     batchItems   = [];
     batchAborted = false;
   }
-  const PRIZE_LABEL    = { giai_db:'Đặc biệt', giai_nhat:'Nhất', giai_nhi:'Nhì',
-                           giai_ba:'Ba', giai_tu:'Tư', giai_nam:'Năm', giai_sau:'Sáu', giai_bay:'Bảy' };
-
-  // ── Scrape tự động ──────────────────────────────────────────────────
-  let scrapeStatus  = $state('idle'); // 'idle' | 'loading' | 'preview' | 'error'
-  let scrapeMessage = $state('');
-  let scrapePartial = $state(false);
-
-  async function handleScrape() {
-    scrapeStatus  = 'loading';
-    scrapeMessage = '';
-    const dateParam = draw_date !== today ? `&date=${draw_date}` : '';
-    try {
-      const res  = await fetch(`/api/scrape?province=${province}${dateParam}`);
-      const data = await res.json();
-      if (!res.ok) {
-        scrapeStatus  = 'error';
-        scrapeMessage = data.error || 'Lấy dữ liệu thất bại.';
-        return;
-      }
-      // Điền kết quả vào form nhập tay
-      for (const p of PRIZE_CONFIG) {
-        const val = data.prizes[p.key];
-        if (!val) continue;
-        prizes[p.key] = Array.isArray(val) ? val : [val];
-      }
-      scrapeStatus  = 'preview';
-      scrapePartial = data.partial;
-      scrapeMessage = data.partial
-        ? `Tìm được ${data.foundCount}/${data.totalPrizes} giải. Kiểm tra và điền các ô còn thiếu.`
-        : 'Đã lấy đủ kết quả. Kiểm tra lại rồi nhấn Lưu.';
-    } catch {
-      scrapeStatus = 'error'; scrapeMessage = 'Không kết nối được server.';
-    }
-  }
 </script>
 
 <h1 class="text-2xl font-bold mb-6 text-gray-800">Nhập kết quả xổ số</h1>
@@ -245,11 +207,6 @@
     class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
            {activeTab === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
     Nhập tay
-  </button>
-  <button onclick={() => activeTab = 'csv'}
-    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-           {activeTab === 'csv' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-    Import CSV
   </button>
   <button onclick={() => activeTab = 'batch'}
     class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
@@ -277,16 +234,6 @@
           <input id="draw_date" type="date" bind:value={draw_date} required
             class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
-        <div>
-          <label for="province" class="block text-sm font-medium text-gray-700 mb-1">Khu vực</label>
-          <select id="province" bind:value={province}
-            class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-            <option value="mien-bac">Miền Bắc</option>
-            <option value="mien-trung">Miền Trung</option>
-            <option value="mien-nam">Miền Nam</option>
-          </select>
-        </div>
-        <!-- Nút lấy kết quả tự động -->
         <button type="button" onclick={handleScrape} disabled={scrapeStatus === 'loading'}
           class="px-4 py-2 rounded-lg text-sm font-medium border border-indigo-300 text-indigo-700
                  hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
@@ -334,96 +281,18 @@
     </button>
   </form>
 
-<!-- ───── TAB CSV IMPORT ───── -->
+<!-- ───── TAB SCRAPE HÀNG LOẠT ───── -->
 {:else}
 
-  <div class="bg-white border rounded-xl p-6 shadow-sm mb-4">
-    <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
-      <div>
-        <h2 class="font-semibold text-gray-800 mb-1">Import từ file CSV</h2>
-        <p class="text-sm text-gray-500">Mỗi dòng = 1 kỳ xổ số. Tải file mẫu để xem định dạng đúng.</p>
-      </div>
-      <button onclick={downloadTemplate}
-        class="text-sm px-4 py-2 border rounded-lg text-blue-600 hover:bg-blue-50 shrink-0">
-        Tải file mẫu CSV
-      </button>
-    </div>
-
-    <label for="csvfile" class="block text-sm font-medium text-gray-700 mb-2">Chọn file CSV</label>
-    <input id="csvfile" type="file" accept=".csv,text/csv" onchange={handleFileChange}
-      class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-             file:rounded-lg file:border file:text-sm file:font-medium
-             file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100" />
-  </div>
-
-  <!-- Lỗi parse -->
-  {#if csvErrors.length > 0}
-    <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-      <p class="font-medium text-red-700 mb-2">Phát hiện {csvErrors.length} lỗi:</p>
-      <ul class="text-sm text-red-600 space-y-1">
-        {#each csvErrors as err}
-          <li>• {err}</li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
-
-  <!-- Thông báo import -->
-  {#if csvStatus === 'success'}
-    <div class="mb-4 p-4 bg-green-100 text-green-800 rounded-xl border border-green-300">✅ {csvMessage}</div>
-  {/if}
-  {#if csvStatus === 'error'}
-    <div class="mb-4 p-4 bg-red-100 text-red-800 rounded-xl border border-red-300">❌ {csvMessage}</div>
-  {/if}
-
-  <!-- Preview dữ liệu đã parse -->
-  {#if csvDraws.length > 0}
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden mb-4">
-      <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
-        <span class="font-semibold text-gray-700">Xem trước — {csvDraws.length} kỳ</span>
-      </div>
-      <div class="divide-y max-h-72 overflow-y-auto">
-        {#each csvDraws as d, i}
-          <div class="px-4 py-2 flex items-center gap-4 text-sm">
-            <span class="text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
-            <span class="font-mono font-semibold text-blue-700 w-28">{d.draw_date}</span>
-            <span class="text-gray-500">{PROVINCE_LABEL[d.province] ?? d.province}</span>
-            <span class="text-gray-400">
-              ĐB: <span class="font-mono text-gray-700">{d.prizes.giai_db}</span>
-            </span>
-          </div>
-        {/each}
-      </div>
-    </div>
-
-    <button onclick={handleCSVImport} disabled={csvStatus === 'loading'}
-      class="w-full py-3 rounded-xl font-semibold text-white transition-colors
-             {csvStatus === 'loading' ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}">
-      {csvStatus === 'loading' ? 'Đang nhập...' : `Nhập tất cả ${csvDraws.length} kỳ`}
-    </button>
-  {/if}
-
-{:else if activeTab === 'batch'}
-
-<!-- ───── TAB SCRAPE HÀNG LOẠT ───── -->
 <div class="bg-white border rounded-xl p-6 shadow-sm mb-4">
   <h2 class="font-semibold text-gray-800 mb-1">Scrape kết quả tự động nhiều ngày</h2>
   <p class="text-sm text-gray-500 mb-5">
-    Tự động lấy dữ liệu từ minhchinh.com và lưu vào database. Ngày đã có sẽ bỏ qua.
+    Tự động lấy dữ liệu từ web và lưu vào database. Ngày đã có sẽ bỏ qua.
     Tối đa {MAX_BATCH_DAYS} ngày mỗi lần.
   </p>
 
   {#if batchStatus === 'idle'}
     <div class="flex gap-4 flex-wrap items-end mb-5">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Khu vực</label>
-        <select bind:value={batchProvince}
-          class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-          <option value="mien-bac">Miền Bắc</option>
-          <option value="mien-trung">Miền Trung</option>
-          <option value="mien-nam">Miền Nam</option>
-        </select>
-      </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
         <input type="date" bind:value={batchFromDate} max={batchToDate}
@@ -435,11 +304,22 @@
           class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
       </div>
     </div>
-    {#if batchProvince !== 'mien-bac'}
-      <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-        ⚠️ Miền Trung và Miền Nam có thể không parse được đầy đủ do mỗi ngày có nhiều tỉnh. Khuyến nghị dùng Miền Bắc.
-      </div>
-    {/if}
+
+    <!-- URL tùy chỉnh -->
+    <div class="mb-5">
+      <label class="block text-sm font-medium text-gray-700 mb-1">URL nguồn tùy chỉnh <span class="text-gray-400 font-normal">(tuỳ chọn)</span></label>
+      <input type="url" bind:value={batchCustomUrl}
+        placeholder="https://minhchinh.com/ket-qua-xo-so-mien-bac/{'{date}'}.html"
+        class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+      <p class="mt-1.5 text-xs text-gray-400">
+        {#if batchCustomUrl.trim()}
+          Ví dụ ngày {batchFromDate}: <span class="font-mono text-gray-600">{batchUrlPreview()}</span>
+        {:else}
+          Dùng <code class="bg-gray-100 px-1 rounded">{'{date}'}</code> làm chỗ thay thế ngày (định dạng DD-MM-YYYY). Để trống = dùng nguồn tự động.
+        {/if}
+      </p>
+    </div>
+
     <button onclick={handleBatchScrape}
       class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
       Bắt đầu scrape {batchDayCount()} ngày

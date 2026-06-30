@@ -54,8 +54,10 @@ function fetchHtml(url, redirectCount = 0) {
       res.on('error', reject);
     });
 
+    // Cho phép cấu hình qua env var — production xa server VN cần timeout cao hơn
+    const timeoutMs = parseInt(process.env.SCRAPE_TIMEOUT_MS ?? '20000');
     req.on('error', reject);
-    req.setTimeout(12_000, () => { req.destroy(new Error('Timeout 12s')); });
+    req.setTimeout(timeoutMs, () => { req.destroy(new Error(`Timeout ${timeoutMs}ms`)); });
     req.end();
   });
 }
@@ -308,5 +310,3 @@ export async function scrapeResult(province = 'mien-bac', date = null) {
   };
 }
 
-/** Danh sách nguồn đang cấu hình (dùng để hiển thị UI) */
-export const SCRAPE_SOURCES = SOURCES.map(s => ({ name: s.name, label: s.label }));

@@ -28,22 +28,19 @@ export async function POST({ request }) {
   const yestVN    = dateVN(yesterday(vn));
   const dates     = [todayVN, yestVN];
 
-  const results = [];
-
-  for (const province of provinces) {
-    for (const date of dates) {
+  // Scrape song song: tất cả tổ hợp (province × date) chạy đồng thời
+  const tasks = provinces.flatMap(province =>
+    dates.map(async (date) => {
       if (findDraw(date, province)) {
-        results.push({ date, province, status: 'skipped' });
-        continue;
+        return { date, province, status: 'skipped' };
       }
       try {
         const scraped = await scrapeResult(province, date);
         if (!scraped.success) {
-          results.push({ date, province, status: 'no_data', errors: scraped.errors });
-          continue;
+          return { date, province, status: 'no_data', errors: scraped.errors };
         }
         const drawId = saveDraw(date, province, scraped.prizes);
-        results.push({
+        return {
           date,
           province,
           status:      'saved',
@@ -51,12 +48,14 @@ export async function POST({ request }) {
           source:      scraped.source,
           sourceLabel: scraped.sourceLabel,
           partial:     scraped.partial ?? false,
-        });
+        };
       } catch (e) {
-        results.push({ date, province, status: 'error', error: String(e) });
+        return { date, province, status: 'error', error: String(e) };
       }
-    }
-  }
+    })
+  );
+
+  const results = await Promise.all(tasks);
 
   const saved   = results.filter(r => r.status === 'saved').length;
   const skipped = results.filter(r => r.status === 'skipped').length;

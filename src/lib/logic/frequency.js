@@ -14,7 +14,7 @@ export function buildFrequencyMap(last2List) {
 
 // Phân loại một cặp số dựa trên tần suất so với trung bình
 // Trả về: 'manh' | 'vua' | 'yeu' | 'tham-khao'
-export function classify(count, avg) {
+function classify(count, avg) {
   if (!count)              return 'tham-khao'; // 0, undefined, null — chưa xuất hiện
   if (!avg)                return 'vua';       // không có baseline, coi là trung bình
   if (count >= avg * 1.5) return 'manh';       // xuất hiện nhiều hơn 50% so với TB

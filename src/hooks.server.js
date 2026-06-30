@@ -44,10 +44,9 @@ async function scrapeProvince(province, date, tag) {
 async function runDailyScrape(label = 'scheduled') {
   const today = todayVN();
   const tag   = `[auto-scrape:${label}]`;
-  console.log(tag, `Bắt đầu scrape ${today} (${PROVINCES.length} miền)...`);
-  for (const province of PROVINCES) {
-    await scrapeProvince(province, today, tag);
-  }
+  console.log(tag, `Bắt đầu scrape ${today} (${PROVINCES.length} miền, song song)...`);
+  // Scrape 3 miền song song — tổng thời gian = miền chậm nhất, không phải tổng cộng
+  await Promise.all(PROVINCES.map(province => scrapeProvince(province, today, tag)));
 }
 
 function scheduleScrape() {
