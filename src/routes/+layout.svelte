@@ -1,8 +1,13 @@
 <script>
+  import { browser } from '$app/environment';
   import favicon from '$lib/assets/favicon.svg';
   import '../app.css';
 
   let { children } = $props();
+
+  if (browser && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 
   const NAV_LINKS = [
     { href: '/',          label: 'Dashboard' },
@@ -20,6 +25,12 @@
 
 <svelte:head>
   <link rel="icon" href={favicon} />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1e40af" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Times XS" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
 </svelte:head>
 
 <nav class="bg-blue-800 text-white shadow-md">

@@ -7,12 +7,14 @@ export function load({ url }) {
 
   const draws = getDrawsForMonth(year, month);
 
-  // Tạo map: draw_date → [draws] (có thể nhiều tỉnh cùng ngày)
-  const byDate = {};
+  const byDate   = {};
+  const pairFreq = {};
+
   for (const d of draws) {
     if (!byDate[d.draw_date]) byDate[d.draw_date] = [];
     byDate[d.draw_date].push(d);
+    if (d.gdb_pair) pairFreq[d.gdb_pair] = (pairFreq[d.gdb_pair] ?? 0) + 1;
   }
 
-  return { byDate, year, month };
+  return { byDate, pairFreq, year, month };
 }

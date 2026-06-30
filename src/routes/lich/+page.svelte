@@ -70,6 +70,21 @@
   }
 
   const today = new Date().toISOString().slice(0, 10);
+
+  // Màu ô dựa trên tần suất cặp GĐB xuất hiện trong tháng
+  function pairHeat(pair) {
+    const c = pair ? (data.pairFreq[pair] ?? 0) : 0;
+    if (c >= 3) return 'bg-blue-600 !text-white';
+    if (c === 2) return 'bg-blue-100';
+    return '';
+  }
+
+  // Top cặp xuất hiện nhiều lần trong tháng
+  let topPairs = $derived(
+    Object.entries(data.pairFreq)
+      .filter(([, c]) => c >= 2)
+      .sort(([, a], [, b]) => b - a)
+  );
 </script>
 
 <div class="flex items-center justify-between mb-6">
@@ -130,12 +145,13 @@
           {#if hasDraw}
             <div class="space-y-0.5">
               {#each draws as draw}
+                {@const heat = pairHeat(draw.gdb_pair)}
                 <div class="flex items-center gap-1">
                   {#if draws.length > 1}
                     <span class="text-[9px] text-gray-400 w-4">{PROVINCE_SHORT[draw.province] ?? '?'}</span>
                   {/if}
-                  <span class="font-mono font-bold text-sm text-blue-700
-                               {isSelected ? 'text-amber-700' : ''}">
+                  <span class="font-mono font-bold text-sm rounded px-0.5
+                               {heat || (isSelected ? 'text-amber-700' : 'text-blue-700')}">
                     {draw.gdb_pair ?? '??'}
                   </span>
                 </div>
@@ -151,17 +167,39 @@
 </div>
 
 <!-- Chú thích -->
-<div class="flex items-center gap-4 text-xs text-gray-400 mb-6 flex-wrap">
+<div class="flex items-center gap-4 text-xs text-gray-400 mb-4 flex-wrap">
   <span>Số lớn = 2 số cuối giải đặc biệt</span>
   <span class="flex items-center gap-1">
     <span class="w-4 h-4 rounded-full bg-blue-600 text-white text-[8px] flex items-center justify-center">•</span>
     Hôm nay
   </span>
   <span class="flex items-center gap-1">
-    <span class="w-3 h-3 bg-amber-50 border-2 border-amber-400 rounded inline-block"></span>
-    Đang xem chi tiết
+    <span class="font-mono bg-blue-100 text-blue-800 rounded px-1 text-[10px]">xx</span>
+    Ra 2 lần
+  </span>
+  <span class="flex items-center gap-1">
+    <span class="font-mono bg-blue-600 text-white rounded px-1 text-[10px]">xx</span>
+    Ra 3+ lần
   </span>
 </div>
+
+<!-- Cặp lặp lại trong tháng -->
+{#if topPairs.length > 0}
+  <div class="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
+    <p class="text-xs font-semibold text-blue-700 mb-2">
+      Cặp xuất hiện nhiều lần tháng {data.month}/{data.year}
+    </p>
+    <div class="flex flex-wrap gap-2">
+      {#each topPairs as [pair, count]}
+        <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-mono font-bold
+                     {count >= 3 ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800'}">
+          {pair}
+          <span class="text-[10px] font-normal opacity-75">{count}×</span>
+        </span>
+      {/each}
+    </div>
+  </div>
+{/if}
 
 <!-- Chi tiết ngày được chọn -->
 {#if selectedDate}

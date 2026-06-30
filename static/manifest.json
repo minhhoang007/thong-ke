@@ -1,0 +1,30 @@
+{
+  "name": "Times — Thống kê Xổ Số",
+  "short_name": "Times XS",
+  "description": "Phân tích tần suất xổ số Miền Bắc",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1e40af",
+  "theme_color": "#1e40af",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Thống kê", "url": "/thong-ke", "description": "Xem bảng tần suất" },
+    { "name": "Lô Gan",   "url": "/lo-gan",   "description": "Xem lô gan hôm nay" },
+    { "name": "Lịch",     "url": "/lich",      "description": "Lịch xổ số theo tháng" }
+  ]
+}
