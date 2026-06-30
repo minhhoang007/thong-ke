@@ -172,6 +172,171 @@ export function getPairCoOccurrence(topN = 20, prize = null) {
     .map(([key, count]) => { const [a, b] = key.split('-'); return { a, b, count }; });
 }
 
+// Lô gan: số kỳ liên tiếp mỗi cặp 00-99 chưa xuất hiện tính từ kỳ mới nhất
+export function getLoGanStats() {
+  const db = getDb();
+  const totalDraws = db.prepare('SELECT COUNT(*) as n FROM draws').get().n;
+
+  // Lấy ngày xuất hiện gần nhất của mỗi cặp
+  const appeared = db.prepare(`
+    SELECT SUBSTR(r.value, -2) as pair, MAX(d.draw_date) as last_date
+    FROM results r
+    JOIN draws d ON d.id = r.draw_id
+    WHERE LENGTH(TRIM(r.value)) >= 2
+    GROUP BY SUBSTR(r.value, -2)
+  `).all();
+
+  // Lấy toàn bộ ngày kỳ xổ (desc) để đếm "bao nhiêu kỳ sau last_date"
+  const allDates = db.prepare('SELECT draw_date FROM draws ORDER BY draw_date DESC').all().map(r => r.draw_date);
+
+  const ganMap = {};
+  for (let i = 0; i < 100; i++) {
+    ganMap[String(i).padStart(2, '0')] = { gan: totalDraws, lastDate: null };
+  }
+
+  for (const { pair, last_date } of appeared) {
+    if (!pair || pair.length !== 2 || !/^\d{2}$/.test(pair)) continue;
+    const gan = allDates.filter(d => d > last_date).length;
+    ganMap[pair] = { gan, lastDate: last_date };
+  }
+
+  const list = Object.entries(ganMap)
+    .map(([pair, v]) => ({ pair, ...v }))
+    .sort((a, b) => b.gan - a.gan);
+
+  const grid = [];
+  for (let row = 0; row < 10; row++) {
+    grid.push([]);
+    for (let col = 0; col < 10; col++) {
+      const pair = String(row * 10 + col).padStart(2, '0');
+      grid[row].push({ pair, ...ganMap[pair] });
+    }
+  }
+
+  return { list, grid, totalDraws };
+}
+
+// Thống kê đầu/đuôi: tần suất chữ số hàng chục (đầu) và hàng đơn vị (đuôi)
+export function getDauDuoiStats(year = null, month = null) {
+  const db = getDb();
+
+  const conditions = ['LENGTH(TRIM(r.value)) >= 2'];
+  const params = [];
+  if (year && month) {
+    conditions.push("strftime('%Y-%m', d.draw_date) = ?");
+    params.push(`${year}-${String(month).padStart(2, '0')}`);
+  } else if (year) {
+    conditions.push("strftime('%Y', d.draw_date) = ?");
+    params.push(String(year));
+  }
+  const where = conditions.join(' AND ');
+
+  const values = db.prepare(`
+    SELECT r.value FROM results r
+    JOIN draws d ON d.id = r.draw_id
+    WHERE ${where}
+  `).all(...params).map(r => r.value.trim());
+
+  const dauCount  = Array(10).fill(0);
+  const duoiCount = Array(10).fill(0);
+
+  for (const val of values) {
+    if (val.length < 2) continue;
+    const dau  = parseInt(val[val.length - 2]);
+    const duoi = parseInt(val[val.length - 1]);
+    if (!isNaN(dau))  dauCount[dau]++;
+    if (!isNaN(duoi)) duoiCount[duoi]++;
+  }
+
+  return {
+    dau:   dauCount.map((count, digit) => ({ digit, count })),
+    duoi:  duoiCount.map((count, digit) => ({ digit, count })),
+    total: values.length,
+  };
+}
+
+// Tổng giải đặc biệt: tổng 2 chữ số cuối (0-18) + chẵn/lẻ
+export function getTongGDBStats(year = null, month = null) {
+  const db = getDb();
+
+  const conditions = ["r.prize_name = 'giai_db'", 'LENGTH(TRIM(r.value)) >= 2'];
+  const params = [];
+  if (year && month) {
+    conditions.push("strftime('%Y-%m', d.draw_date) = ?");
+    params.push(`${year}-${String(month).padStart(2, '0')}`);
+  } else if (year) {
+    conditions.push("strftime('%Y', d.draw_date) = ?");
+    params.push(String(year));
+  }
+  const where = conditions.join(' AND ');
+
+  const values = db.prepare(`
+    SELECT r.value FROM results r
+    JOIN draws d ON d.id = r.draw_id
+    WHERE ${where}
+  `).all(...params).map(r => r.value.trim());
+
+  const tongCount = Array(19).fill(0);
+  let chan = 0, le = 0;
+
+  for (const val of values) {
+    if (val.length < 2) continue;
+    const d1 = parseInt(val[val.length - 2]);
+    const d2 = parseInt(val[val.length - 1]);
+    if (isNaN(d1) || isNaN(d2)) continue;
+    const tong = d1 + d2;
+    if (tong >= 0 && tong <= 18) tongCount[tong]++;
+    const pair = d1 * 10 + d2;
+    if (pair % 2 === 0) chan++; else le++;
+  }
+
+  return {
+    tong:  tongCount.map((count, value) => ({ value, count })),
+    chan,
+    le,
+    total: values.length,
+  };
+}
+
+// Soi cầu: gợi ý top N cặp dựa trên lô gan + tần suất gần đây
+export function getSoiCauRecs(n = 5) {
+  const db = getDb();
+  const totalDraws = db.prepare('SELECT COUNT(*) as c FROM draws').get().c;
+  if (totalDraws === 0) return [];
+
+  const loGan = getLoGanStats();
+
+  const recentIds = db
+    .prepare('SELECT id FROM draws ORDER BY draw_date DESC LIMIT 30')
+    .all().map(r => r.id);
+
+  const recentFreq = {};
+  for (let i = 0; i < 100; i++) recentFreq[String(i).padStart(2, '0')] = 0;
+
+  if (recentIds.length > 0) {
+    const ph   = recentIds.map(() => '?').join(',');
+    const rows = db.prepare(`SELECT value FROM results WHERE draw_id IN (${ph})`).all(...recentIds);
+    for (const { value } of rows) {
+      const pair = getLast2(value);
+      if (pair && pair in recentFreq) recentFreq[pair]++;
+    }
+  }
+
+  const maxGan  = Math.max(...loGan.list.map(i => i.gan), 1);
+  const maxFreq = Math.max(...Object.values(recentFreq), 1);
+
+  return loGan.list
+    .filter(({ lastDate }) => lastDate !== null) // bỏ qua cặp chưa bao giờ ra
+    .map(({ pair, gan, lastDate }) => {
+      const ganScore  = gan / maxGan;
+      const freqScore = recentFreq[pair] / maxFreq;
+      const score     = ganScore * 0.6 + freqScore * 0.4;
+      return { pair, gan, lastDate, recentCount: recentFreq[pair], score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n);
+}
+
 // Xu hướng top N cặp qua các tháng (tối đa 12 tháng gần nhất)
 export function getTrendData(topN = 5) {
   const db = getDb();

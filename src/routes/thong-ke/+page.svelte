@@ -311,12 +311,127 @@
 
 <!-- ── Section xu hướng ── -->
 {#if data.trend.periods.length > 0}
-  <div class="border-t pt-6">
+  <div class="border-t pt-6 mb-8">
     <h2 class="text-lg font-bold text-gray-700 mb-1">Xu hướng theo tháng</h2>
     <p class="text-xs text-gray-400 mb-4">Top 5 cặp xuất hiện nhiều nhất — tính trên toàn bộ dữ liệu, tất cả giải</p>
 
     <div class="bg-white border rounded-xl p-4 shadow-sm">
       <TrendChart data={data.trend} title="Số lần xuất hiện mỗi tháng" />
+    </div>
+  </div>
+{/if}
+
+<!-- ── Section Đầu / Đuôi ── -->
+{#if data.dauDuoi.total > 0}
+  <div class="border-t pt-6 mb-8">
+    <h2 class="text-lg font-bold text-gray-700 mb-1">Thống kê Đầu / Đuôi</h2>
+    <p class="text-xs text-gray-400 mb-1">
+      <strong>Đầu</strong> = chữ số hàng chục của 2 số cuối (ví dụ: <span class="font-mono">73</span> → đầu <span class="font-mono">7</span>) ·
+      <strong>Đuôi</strong> = chữ số hàng đơn vị (→ đuôi <span class="font-mono">3</span>)
+    </p>
+    <p class="text-xs text-gray-500 mb-4">
+      Dùng để chọn "lô theo đầu" hoặc "lô theo đuôi" — ví dụ: đánh tất cả các cặp có đuôi 7 (07, 17, 27 … 97).
+      Tổng mẫu: {data.dauDuoi.total.toLocaleString()} lần xuất hiện.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- Đầu -->
+      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-4 py-3 border-b bg-blue-50">
+          <span class="font-semibold text-blue-700 text-sm">Đầu (chữ số hàng chục)</span>
+        </div>
+        <div class="p-4 space-y-2">
+          {#each data.dauDuoi.dau as item}
+            {@const max = Math.max(...data.dauDuoi.dau.map(d => d.count), 1)}
+            {@const pct = (item.count / data.dauDuoi.total * 100).toFixed(1)}
+            <div class="flex items-center gap-3">
+              <span class="font-mono font-bold text-blue-700 w-4 shrink-0">{item.digit}</span>
+              <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+                <div class="h-full bg-blue-400 rounded transition-all"
+                  style="width: {(item.count / max * 100).toFixed(1)}%"></div>
+              </div>
+              <span class="text-xs text-gray-600 w-12 text-right shrink-0">{item.count}x</span>
+              <span class="text-xs text-gray-400 w-10 text-right shrink-0">{pct}%</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Đuôi -->
+      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-4 py-3 border-b bg-violet-50">
+          <span class="font-semibold text-violet-700 text-sm">Đuôi (chữ số hàng đơn vị)</span>
+        </div>
+        <div class="p-4 space-y-2">
+          {#each data.dauDuoi.duoi as item}
+            {@const max = Math.max(...data.dauDuoi.duoi.map(d => d.count), 1)}
+            {@const pct = (item.count / data.dauDuoi.total * 100).toFixed(1)}
+            <div class="flex items-center gap-3">
+              <span class="font-mono font-bold text-violet-700 w-4 shrink-0">{item.digit}</span>
+              <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+                <div class="h-full bg-violet-400 rounded transition-all"
+                  style="width: {(item.count / max * 100).toFixed(1)}%"></div>
+              </div>
+              <span class="text-xs text-gray-600 w-12 text-right shrink-0">{item.count}x</span>
+              <span class="text-xs text-gray-400 w-10 text-right shrink-0">{pct}%</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Section Tổng Giải Đặc Biệt ── -->
+{#if data.tongGDB.total > 0}
+  <div class="border-t pt-6">
+    <h2 class="text-lg font-bold text-gray-700 mb-1">Tổng Giải Đặc Biệt</h2>
+    <p class="text-xs text-gray-400 mb-1">
+      Tổng 2 chữ số cuối của giải đặc biệt (ví dụ: <span class="font-mono">73 → 7+3 = 10</span>).
+      Giá trị từ 0 đến 18.
+    </p>
+    <p class="text-xs text-gray-500 mb-4">
+      Nhiều người chơi chọn cặp số có tổng bằng giá trị tổng đang "hot" — hoặc chọn chẵn/lẻ dựa trên xu hướng.
+      Tổng mẫu: {data.tongGDB.total} kỳ giải đặc biệt.
+    </p>
+
+    <!-- Chẵn / Lẻ -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+        <p class="text-xs text-green-600 mb-1">Giải ĐB chẵn</p>
+        <p class="text-3xl font-bold text-green-700">{data.tongGDB.chan}</p>
+        <p class="text-xs text-green-500 mt-0.5">
+          {data.tongGDB.total > 0 ? (data.tongGDB.chan / data.tongGDB.total * 100).toFixed(1) : 0}%
+        </p>
+      </div>
+      <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+        <p class="text-xs text-orange-600 mb-1">Giải ĐB lẻ</p>
+        <p class="text-3xl font-bold text-orange-700">{data.tongGDB.le}</p>
+        <p class="text-xs text-orange-500 mt-0.5">
+          {data.tongGDB.total > 0 ? (data.tongGDB.le / data.tongGDB.total * 100).toFixed(1) : 0}%
+        </p>
+      </div>
+    </div>
+
+    <!-- Bar chart tổng 0–18 -->
+    <div class="bg-white border rounded-xl shadow-sm p-4">
+      <p class="text-xs text-gray-500 mb-3">Tần suất từng giá trị tổng (0 → 18)</p>
+      <div class="space-y-1.5">
+        {#each data.tongGDB.tong as item}
+          {@const max = Math.max(...data.tongGDB.tong.map(t => t.count), 1)}
+          {@const pct = (item.count / data.tongGDB.total * 100).toFixed(1)}
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-xs text-gray-600 w-5 text-right shrink-0">{item.value}</span>
+            <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+              <div class="h-full bg-emerald-400 rounded transition-all"
+                style="width: {(item.count / max * 100).toFixed(1)}%"></div>
+            </div>
+            <span class="text-xs text-gray-600 w-10 text-right shrink-0">{item.count}x</span>
+            <span class="text-xs text-gray-400 w-9 text-right shrink-0">{pct}%</span>
+          </div>
+        {/each}
+      </div>
     </div>
   </div>
 {/if}

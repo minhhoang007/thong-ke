@@ -49,6 +49,33 @@
   </div>
 </div>
 
+<!-- Gợi ý hôm nay (Soi cầu tự động) -->
+{#if data.soiCau.length > 0}
+  <div class="bg-white border rounded-xl p-5 shadow-sm mb-6">
+    <div class="flex items-baseline gap-2 mb-1">
+      <h2 class="text-base font-semibold text-gray-700">Gợi ý hôm nay</h2>
+      <span class="text-xs text-gray-400">Soi cầu tự động</span>
+    </div>
+    <p class="text-xs text-gray-400 mb-4">
+      Tổng hợp từ lô gan (60%) + tần suất 30 kỳ gần nhất (40%). Chỉ mang tính tham khảo — xổ số là ngẫu nhiên.
+    </p>
+    <div class="flex flex-wrap gap-3">
+      {#each data.soiCau as item, i}
+        <div class="flex flex-col items-center bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 min-w-[80px]">
+          <span class="text-xs text-indigo-400 font-medium mb-0.5">#{i + 1}</span>
+          <span class="font-mono font-bold text-2xl text-indigo-700">{item.pair}</span>
+          <span class="text-xs text-indigo-500 mt-1">Gan {item.gan} kỳ</span>
+          <span class="text-xs text-gray-400">Ra {item.recentCount}x/30 kỳ</span>
+        </div>
+      {/each}
+    </div>
+    <div class="mt-3 flex gap-3 text-xs">
+      <a href="/lo-gan" class="text-indigo-600 hover:underline">Xem lô gan đầy đủ →</a>
+      <a href="/thong-ke" class="text-blue-600 hover:underline">Thống kê chi tiết →</a>
+    </div>
+  </div>
+{/if}
+
 <!-- Kỳ xổ số gần nhất -->
 {#if data.latest}
   <div class="bg-white border rounded-xl p-6 shadow-sm">
