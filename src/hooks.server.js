@@ -1,9 +1,16 @@
-import { scrapeResult } from '$lib/logic/scraper.js';
-import { saveDraw, findDraw } from '$lib/db/queries/results.js';
+import { scrapeAndSave } from '$lib/logic/scrape-save.js';
 import { nowVN, todayVN } from '$lib/utils/time.js';
+import { env } from '$env/dynamic/private';
 
 const SCRAPE_HOUR = 18;
 const SCRAPE_MIN  = 45;
+
+// Cấu hình qua env:
+//   AUTO_SCRAPE_ENABLED=false  → tắt scheduler in-process (dùng khi có cron ngoài gọi /api/daily-scrape)
+//   AUTO_SCRAPE_PROVINCES=mien-bac,mien-trung,mien-nam  → miền cần cào (mặc định chỉ mien-bac)
+const ENABLED   = (env.AUTO_SCRAPE_ENABLED ?? 'true').toLowerCase() !== 'false';
+const PROVINCES = (env.AUTO_SCRAPE_PROVINCES ?? 'mien-bac')
+  .split(',').map(s => s.trim()).filter(Boolean);
 
 function msUntilNext() {
   const vn   = nowVN();
@@ -16,31 +23,29 @@ function msUntilNext() {
 
 async function scrapeDay(date, attempt = 1) {
   const tag = '[auto-scrape]';
-  if (findDraw(date, 'mien-bac')) {
-    console.log(tag, `${date} đã có, bỏ qua`);
-    return;
-  }
-  try {
-    const result = await scrapeResult('mien-bac', date);
-    if (!result.success) {
-      console.error(tag, `${date} thất bại (lần ${attempt}):`, result.error);
-      if (attempt < 3) {
-        const retry = attempt * 5 * 60 * 1000; // 5 phút, 10 phút
-        console.log(tag, `Thử lại sau ${attempt * 5} phút...`);
-        setTimeout(() => scrapeDay(date, attempt + 1), retry);
-      }
-      return;
+  const results = await Promise.all(PROVINCES.map(p => scrapeAndSave(p, date)));
+
+  for (const r of results) {
+    if (r.status === 'saved' || r.status === 'partial') {
+      console.log(tag, `${date}/${r.province} OK — id:${r.drawId}, nguồn:${r.sourceLabel}${r.partial ? ' (thiếu giải)' : ''}`);
+    } else if (r.status === 'skipped') {
+      console.log(tag, `${date}/${r.province} đã có, bỏ qua`);
+    } else {
+      console.error(tag, `${date}/${r.province} ${r.status}:`, r.error ?? r.errors ?? '');
     }
-    const drawId = saveDraw(date, 'mien-bac', result.prizes);
-    console.log(tag, `${date} OK — id:${drawId}, nguồn:${result.sourceLabel}${result.partial ? ' (thiếu giải)' : ''}`);
-  } catch (err) {
-    console.error(tag, `${date} exception:`, err.message);
-    if (attempt < 3) setTimeout(() => scrapeDay(date, attempt + 1), attempt * 5 * 60 * 1000);
+  }
+
+  // Retry nếu còn miền chưa lấy được (no_data/error) — tối đa 3 lần, 5/10 phút
+  const failed = results.some(r => r.status === 'no_data' || r.status === 'error');
+  if (failed && attempt < 3) {
+    const retry = attempt * 5 * 60 * 1000;
+    console.log(tag, `Còn miền thất bại — thử lại sau ${attempt * 5} phút...`);
+    setTimeout(() => scrapeDay(date, attempt + 1), retry);
   }
 }
 
 function schedule() {
-  const delay = msUntilNext();
+  const delay  = msUntilNext();
   const nextAt = new Date(Date.now() + delay).toISOString().replace('T', ' ').slice(0, 16);
   console.log(`[auto-scrape] Lịch tiếp: ${nextAt} UTC (${Math.round(delay / 60000)} phút nữa)`);
   setTimeout(async () => {
@@ -50,7 +55,11 @@ function schedule() {
 }
 
 export async function init() {
-  console.log('[auto-scrape] Khởi động scheduler (18:45 VN, Miền Bắc)...');
+  if (!ENABLED) {
+    console.log('[auto-scrape] Đã tắt (AUTO_SCRAPE_ENABLED=false) — dùng cron ngoài.');
+    return;
+  }
+  console.log(`[auto-scrape] Khởi động scheduler (18:45 VN, miền: ${PROVINCES.join(', ')})...`);
   const vn = nowVN();
   const h  = vn.getUTCHours();
   const m  = vn.getUTCMinutes();

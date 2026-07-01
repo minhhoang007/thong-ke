@@ -18,8 +18,10 @@
     { href: '/dan-de',    label: 'Dàn Đề' },
     { href: '/lich',      label: 'Lịch' },
     { href: '/lich-su',    label: 'Lịch sử' },
+    { href: '/khuyen-nghi', label: 'Khuyến nghị' },
     { href: '/du-doan',    label: 'Dự Đoán' },
     { href: '/nghien-cuu', label: 'Nghiên cứu' },
+    { href: '/trang-thai', label: 'Trạng thái' },
   ];
 
   let menuOpen = $state(false);

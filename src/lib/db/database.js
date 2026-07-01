@@ -21,10 +21,22 @@ CREATE TABLE IF NOT EXISTS results (
   value       TEXT NOT NULL
 );
 
+-- Nhật ký mỗi lần cào (tự động hoặc thủ công) — để phát hiện ngày bị hụt dữ liệu
+CREATE TABLE IF NOT EXISTS scrape_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  draw_date   TEXT NOT NULL,       -- kỳ được cào (YYYY-MM-DD)
+  province    TEXT NOT NULL,
+  status      TEXT NOT NULL,       -- saved | skipped | partial | no_data | error
+  source      TEXT,                -- nguồn thắng (nếu saved)
+  note        TEXT                 -- lỗi hoặc ghi chú
+);
+
 CREATE INDEX IF NOT EXISTS idx_draws_date     ON draws(draw_date);
 CREATE INDEX IF NOT EXISTS idx_draws_prov_date ON draws(province, draw_date);
 CREATE INDEX IF NOT EXISTS idx_results_draw    ON results(draw_id);
 CREATE INDEX IF NOT EXISTS idx_results_prize   ON results(prize_name);
+CREATE INDEX IF NOT EXISTS idx_scrapelog_runat ON scrape_log(run_at DESC);
 `;
 
 let _db;

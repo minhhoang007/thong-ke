@@ -898,3 +898,65 @@ function _runBacktest(testN) {
     results: rows,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Khuyến nghị hôm nay — gộp ensemble + gap (overdue) thành 1 bảng duy nhất,
+// kèm mức tin cậy lấy từ backtest. Dùng cho trang /khuyen-nghi và dashboard.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {number} n  số cặp gợi ý (mặc định 8)
+ * @returns {{ picks, backtest, totalDraws, weights } | null}
+ *   picks[i] = { pair, score, ensembleScore, overdueScore, gan, count30,
+ *                trend, cauLoStreak, avgGap, currentGap, appearances, reasons[] }
+ */
+export function getDailyRecommendation(n = 8) {
+  return withCache(`dailyRec_${n}`, TTL, () => _getDailyRecommendation(n));
+}
+
+function _getDailyRecommendation(n) {
+  const ensemble = getEnsembleData();
+  if (!ensemble) return null;
+
+  const gap = getGapStatsAll();
+
+  // Chuẩn hoá overdueScore (Z-score) về [0,1]: 0σ → 0, ≥3σ → 1
+  const normOverdue = (z) => (z == null ? 0 : Math.max(0, Math.min(1, z / 3)));
+
+  const merged = ensemble.sorted.map((e) => {
+    const g = gap.pairs[e.pair] ?? {};
+    const overdueScore = g.overdueScore ?? null;
+
+    // Kết hợp: 70% điểm ensemble + 30% mức "quá hạn" theo phân tích gap
+    const score = Math.round(e.score * 0.7 + normOverdue(overdueScore) * 100 * 0.3);
+
+    const reasons = [];
+    if (e.gan >= 10)                    reasons.push(`Lô gan ${e.gan} kỳ`);
+    if (overdueScore != null && overdueScore >= 1.5)
+                                        reasons.push(`Quá hạn ${overdueScore.toFixed(1)}σ`);
+    if (e.count30 <= 3)                 reasons.push(`Ít ra 30 kỳ (${e.count30})`);
+    if (e.trend === 'down')             reasons.push('Xu hướng giảm — chờ bật lại');
+    if (e.cauLoStreak === 0)            reasons.push('Không trên cầu nóng');
+    if (reasons.length === 0)           reasons.push('Điểm tổng hợp khá');
+
+    return {
+      pair: e.pair,
+      score,
+      ensembleScore: e.score,
+      overdueScore,
+      gan:         e.gan,
+      count30:     e.count30,
+      trend:       e.trend,
+      cauLoStreak: e.cauLoStreak,
+      avgGap:      g.avgGap ?? null,
+      currentGap:  g.currentGap ?? null,
+      appearances: g.appearances ?? 0,
+      reasons,
+    };
+  });
+
+  const picks    = merged.sort((a, b) => b.score - a.score).slice(0, n);
+  const backtest = runBacktest(30);
+
+  return { picks, backtest, totalDraws: ensemble.totalDraws, weights: ensemble.weights };
+}

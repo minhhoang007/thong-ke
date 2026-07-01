@@ -1,0 +1,30 @@
+# Cào kết quả xổ số hằng ngày qua cron ngoài (thay cho scheduler in-process).
+#
+# Cách dùng:
+#   1. Trong Settings → Secrets and variables → Actions, tạo:
+#        APP_URL      = https://ten-app-cua-ban  (không có dấu / cuối)
+#        CRON_SECRET  = chuỗi bí mật, khớp env CRON_SECRET trên server
+#   2. Trên server (Railway…), đặt env:
+#        CRON_SECRET=<same>          # bắt buộc endpoint xác thực
+#        AUTO_SCRAPE_ENABLED=false   # tắt scheduler in-process để khỏi cào trùng
+#
+# Lịch: 18:55 giờ VN = 11:55 UTC (xổ MB ~18:35, chừa biên an toàn).
+
+name: daily-scrape
+
+on:
+  schedule:
+    - cron: '55 11 * * *'   # 11:55 UTC = 18:55 VN
+  workflow_dispatch:         # cho phép chạy tay từ tab Actions
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi /api/daily-scrape
+        run: |
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/daily-scrape" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -d '{"provinces":["mien-bac","mien-trung","mien-nam"]}' \
+            -w '\nHTTP %{http_code}\n'
