@@ -59,8 +59,9 @@ export async function init() {
   const h  = vn.getUTCHours();
   const m  = vn.getUTCMinutes();
   if (h > SCRAPE_HOUR || (h === SCRAPE_HOUR && m >= SCRAPE_MIN)) {
-    console.log('[auto-scrape] Khởi động sau 18:45 — chạy catch-up...');
-    await scrapeDay(todayVN());
+    console.log('[auto-scrape] Khởi động sau 18:45 — chạy catch-up (nền)...');
+    // KHÔNG await: tránh chặn khởi động server (healthcheck sẽ fail nếu chờ mạng)
+    scrapeDay(todayVN()).catch(err => console.error('[auto-scrape] catch-up lỗi:', err?.message ?? err));
   }
   schedule();
 }
