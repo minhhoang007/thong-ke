@@ -17,7 +17,7 @@ export function load() {
   const topPairs = total > 0 ? getTopPairs(1) : [];
   const soiCau   = total > 0 ? getSoiCauRecs(5) : [];
 
-  const todayInDb        = !!findDraw(today, 'mien-bac');
+  const todayInDb        = !!findDraw(today);
   const resultsAvailable = pastCutoff;
 
   return { total, latest, topPairs, soiCau, todayVN: today, todayInDb, resultsAvailable };

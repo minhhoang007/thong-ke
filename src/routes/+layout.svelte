@@ -9,22 +9,37 @@
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
-  const NAV_LINKS = [
-    { href: '/',          label: 'Dashboard' },
-    { href: '/nhap-lieu', label: 'Nhập liệu' },
-    { href: '/thong-ke',  label: 'Thống kê' },
-    { href: '/lo-gan',    label: 'Lô Gan' },
-    { href: '/cau-lo',    label: 'Cầu Lô' },
-    { href: '/dan-de',    label: 'Dàn Đề' },
-    { href: '/lich',      label: 'Lịch' },
-    { href: '/lich-su',    label: 'Lịch sử' },
-    { href: '/khuyen-nghi', label: 'Khuyến nghị' },
-    { href: '/du-doan',    label: 'Dự Đoán' },
-    { href: '/nghien-cuu', label: 'Nghiên cứu' },
-    { href: '/trang-thai', label: 'Trạng thái' },
+  // Menu 2 cấp: item có `children` là menu cha (dropdown), còn lại là link đơn.
+  const NAV = [
+    { href: '/', label: 'Dashboard' },
+    {
+      label: 'Thống kê',
+      children: [
+        { href: '/thong-ke',   label: 'Bảng thống kê' },
+        { href: '/khuyen-nghi', label: 'Khuyến nghị' },
+        { href: '/lo-gan',     label: 'Lô Gan' },
+        { href: '/cau-lo',     label: 'Cầu Lô' },
+        { href: '/dan-de',     label: 'Dàn Đề' },
+        { href: '/du-doan',    label: 'Dự Đoán' },
+        { href: '/nghien-cuu', label: 'Nghiên cứu' },
+      ],
+    },
+    {
+      label: 'Dữ liệu',
+      children: [
+        { href: '/nhap-lieu',  label: 'Nhập liệu' },
+        { href: '/lich',       label: 'Lịch' },
+        { href: '/lich-su',    label: 'Lịch sử' },
+        { href: '/trang-thai', label: 'Trạng thái' },
+      ],
+    },
   ];
 
-  let menuOpen = $state(false);
+  let menuOpen = $state(false);   // hamburger mobile
+  let openDesk = $state(null);    // label dropdown desktop đang mở
+
+  function toggleDesk(label) { openDesk = openDesk === label ? null : label; }
+  function closeAll() { openDesk = null; menuOpen = false; }
 </script>
 
 <svelte:head>
@@ -37,17 +52,38 @@
   <link rel="apple-touch-icon" href="/icon.svg" />
 </svelte:head>
 
-<nav class="bg-blue-800 text-white shadow-md">
+<nav class="bg-blue-800 text-white shadow-md relative z-20">
   <div class="px-4 py-3 flex items-center justify-between">
-    <a href="/" onclick={() => menuOpen = false}
+    <a href="/" onclick={closeAll}
       class="font-bold text-xl tracking-wide shrink-0 hover:text-blue-200">
       Times
     </a>
 
     <!-- Desktop links -->
-    <div class="hidden md:flex gap-5 items-center text-sm">
-      {#each NAV_LINKS as link}
-        <a href={link.href} class="hover:underline opacity-90 hover:opacity-100">{link.label}</a>
+    <div class="hidden md:flex gap-1 items-center text-sm">
+      {#each NAV as item}
+        {#if item.children}
+          <div class="relative">
+            <button onclick={() => toggleDesk(item.label)}
+              class="px-3 py-2 rounded hover:bg-blue-700 flex items-center gap-1 transition-colors">
+              {item.label}
+              <span class="text-[10px] opacity-70">{openDesk === item.label ? '▲' : '▼'}</span>
+            </button>
+            {#if openDesk === item.label}
+              <div class="absolute right-0 mt-1 w-44 bg-white text-gray-700 rounded-lg shadow-lg py-1 z-30">
+                {#each item.children as c}
+                  <a href={c.href} onclick={closeAll}
+                    class="block px-4 py-2 text-sm hover:bg-blue-50 hover:text-blue-700">
+                    {c.label}
+                  </a>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <a href={item.href} onclick={closeAll}
+            class="px-3 py-2 rounded hover:bg-blue-700 transition-colors">{item.label}</a>
+        {/if}
       {/each}
     </div>
 
@@ -69,18 +105,36 @@
 
   <!-- Mobile dropdown -->
   {#if menuOpen}
-    <div class="md:hidden border-t border-blue-700 py-3">
-      {#each NAV_LINKS as link}
-        <a href={link.href} onclick={() => menuOpen = false}
-          class="block text-center text-base font-medium py-3.5
-                 border-b border-blue-700/30 last:border-0
-                 opacity-90 hover:opacity-100 hover:bg-blue-700/40 transition-colors">
-          {link.label}
-        </a>
+    <div class="md:hidden border-t border-blue-700 py-2">
+      {#each NAV as item}
+        {#if item.children}
+          <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-blue-300">
+            {item.label}
+          </div>
+          {#each item.children as c}
+            <a href={c.href} onclick={closeAll}
+              class="block px-6 py-3 text-base border-b border-blue-700/30 last:border-0
+                     opacity-90 hover:opacity-100 hover:bg-blue-700/40 transition-colors">
+              {c.label}
+            </a>
+          {/each}
+        {:else}
+          <a href={item.href} onclick={closeAll}
+            class="block px-3 py-3 text-base font-medium border-b border-blue-700/30
+                   opacity-90 hover:opacity-100 hover:bg-blue-700/40 transition-colors">
+            {item.label}
+          </a>
+        {/if}
       {/each}
     </div>
   {/if}
 </nav>
+
+<!-- Backdrop đóng dropdown desktop khi bấm ra ngoài -->
+{#if openDesk}
+  <button class="fixed inset-0 z-10 cursor-default hidden md:block" aria-label="Đóng menu"
+    onclick={closeAll}></button>
+{/if}
 
 <main class="p-4 md:p-6 max-w-5xl mx-auto">
   {@render children()}

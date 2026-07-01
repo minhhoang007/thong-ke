@@ -33,7 +33,7 @@
     }
     try {
       const res  = await fetch('/api/results', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                               body: JSON.stringify({ draw_date, province: 'mien-bac', prizes: prizesPayload }) });
+                               body: JSON.stringify({ draw_date, prizes: prizesPayload }) });
       const data = await res.json();
       if (res.ok) {
         manualStatus  = 'success';
@@ -65,9 +65,9 @@
   async function handleScrape() {
     scrapeStatus  = 'loading';
     scrapeMessage = '';
-    const dateParam = draw_date !== today ? `&date=${draw_date}` : '';
+    const dateParam = draw_date !== today ? `?date=${draw_date}` : '';
     try {
-      const res  = await fetch(`/api/scrape?province=mien-bac${dateParam}`);
+      const res  = await fetch(`/api/scrape${dateParam}`);
       const data = await res.json();
       if (!res.ok) {
         scrapeStatus  = 'error';
@@ -93,16 +93,9 @@
   const MAX_BATCH_DAYS = 60;
   let batchFromDate   = $state((() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })());
   let batchToDate     = $state(today);
-  let batchCustomUrl  = $state('');
   let batchStatus     = $state('idle'); // 'idle' | 'running' | 'done'
   let batchItems      = $state([]);    // { date, status: 'pending'|'saving'|'saved'|'skipped'|'error', message? }
   let batchAborted    = $state(false);
-
-  /** YYYY-MM-DD → DD-MM-YYYY (định dạng URL tiếng Việt) */
-  function toVnDate(isoDate) {
-    const [y, m, d] = isoDate.split('-');
-    return `${d}-${m}-${y}`;
-  }
 
   function generateDateRange(from, to) {
     const dates = [];
@@ -127,18 +120,11 @@
   let batchSkip   = $derived(batchItems.filter(i => i.status === 'skipped').length);
   let batchErrors = $derived(batchItems.filter(i => i.status === 'error').length);
 
-  let batchUrlPreview = $derived(() => {
-    const t = batchCustomUrl.trim();
-    if (!t || !batchFromDate) return '';
-    return t.replace('{date}', toVnDate(batchFromDate));
-  });
-
   async function handleBatchScrape() {
     batchAborted = false;
     const dates  = generateDateRange(batchFromDate, batchToDate);
     batchItems   = dates.map(date => ({ date, status: 'pending' }));
     batchStatus  = 'running';
-    const customTrimmed = batchCustomUrl.trim();
 
     for (let i = 0; i < batchItems.length; i++) {
       if (batchAborted) break;
@@ -147,46 +133,30 @@
       batchItems = [...batchItems];
 
       try {
-        // 1. Scrape
-        let scrapeApiUrl;
-        if (customTrimmed) {
-          const resolvedUrl = customTrimmed.replace('{date}', toVnDate(batchItems[i].date));
-          scrapeApiUrl = `/api/scrape?scrapeUrl=${encodeURIComponent(resolvedUrl)}`;
-        } else {
-          scrapeApiUrl = `/api/scrape?province=mien-bac&date=${batchItems[i].date}`;
-        }
-
-        const scrapeRes  = await fetch(scrapeApiUrl);
-        const scrapeData = await scrapeRes.json();
-
-        if (!scrapeRes.ok) {
-          batchItems[i] = { ...batchItems[i], status: 'error', message: scrapeData.error || 'Lỗi scrape' };
-          batchItems = [...batchItems];
-          await new Promise(r => setTimeout(r, 200));
-          continue;
-        }
-
-        // 2. Lưu (bỏ qua nếu đã có)
-        const saveRes  = await fetch('/api/results', {
-          method: 'POST',
+        // Cào + lưu server-side (idempotent, tự bỏ qua nếu đã có)
+        const res  = await fetch('/api/daily-scrape', {
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ draw_date: batchItems[i].date, province: 'mien-bac', prizes: scrapeData.prizes, skip_if_exists: true }),
+          body:    JSON.stringify({ dates: [batchItems[i].date] }),
         });
-        const saveData = await saveRes.json();
+        const json = await res.json();
+        const r    = json.results?.[0];
 
-        if (saveData.skipped) {
+        if (!res.ok || !r) {
+          batchItems[i] = { ...batchItems[i], status: 'error', message: json.error || 'Lỗi' };
+        } else if (r.status === 'skipped') {
           batchItems[i] = { ...batchItems[i], status: 'skipped' };
-        } else if (saveRes.ok) {
-          batchItems[i] = { ...batchItems[i], status: 'saved', message: scrapeData.partial ? `⚠️ Thiếu ${scrapeData.totalPrizes - scrapeData.foundCount} giải` : undefined };
+        } else if (r.status === 'saved' || r.status === 'partial') {
+          batchItems[i] = { ...batchItems[i], status: 'saved', message: r.partial ? '⚠️ Thiếu giải' : undefined };
         } else {
-          batchItems[i] = { ...batchItems[i], status: 'error', message: saveData.error || 'Lỗi lưu' };
+          batchItems[i] = { ...batchItems[i], status: 'error', message: 'Chưa có kết quả' };
         }
       } catch {
         batchItems[i] = { ...batchItems[i], status: 'error', message: 'Mất kết nối' };
       }
 
       batchItems = [...batchItems];
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 300));
     }
 
     batchStatus = 'done';
@@ -303,21 +273,6 @@
         <input type="date" bind:value={batchToDate} min={batchFromDate} max={today}
           class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
       </div>
-    </div>
-
-    <!-- URL tùy chỉnh -->
-    <div class="mb-5">
-      <label class="block text-sm font-medium text-gray-700 mb-1">URL nguồn tùy chỉnh <span class="text-gray-400 font-normal">(tuỳ chọn)</span></label>
-      <input type="url" bind:value={batchCustomUrl}
-        placeholder="https://minhchinh.com/ket-qua-xo-so-mien-bac/{'{date}'}.html"
-        class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-      <p class="mt-1.5 text-xs text-gray-400">
-        {#if batchCustomUrl.trim()}
-          Ví dụ ngày {batchFromDate}: <span class="font-mono text-gray-600">{batchUrlPreview()}</span>
-        {:else}
-          Dùng <code class="bg-gray-100 px-1 rounded">{'{date}'}</code> làm chỗ thay thế ngày (định dạng DD-MM-YYYY). Để trống = dùng nguồn tự động.
-        {/if}
-      </p>
     </div>
 
     <button onclick={handleBatchScrape}

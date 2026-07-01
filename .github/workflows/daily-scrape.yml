@@ -26,5 +26,5 @@ jobs:
           curl -fsS -X POST "${{ secrets.APP_URL }}/api/daily-scrape" \
             -H "Content-Type: application/json" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            -d '{"provinces":["mien-bac","mien-trung","mien-nam"]}' \
+            -d '{}' \
             -w '\nHTTP %{http_code}\n'

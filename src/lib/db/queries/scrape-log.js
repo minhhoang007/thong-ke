@@ -1,11 +1,13 @@
 import { getDb } from '../database.js';
 import { todayVN } from '../../utils/time.js';
 
-/** Ghi 1 dòng nhật ký cào. */
-export function logScrape({ draw_date, province, status, source = null, note = null }) {
+const PROVINCE = 'mien-bac';
+
+/** Ghi 1 dòng nhật ký cào (Miền Bắc). */
+export function logScrape({ draw_date, status, source = null, note = null }) {
   getDb()
     .prepare('INSERT INTO scrape_log (draw_date, province, status, source, note) VALUES (?, ?, ?, ?, ?)')
-    .run(draw_date, province, status, source, note);
+    .run(draw_date, PROVINCE, status, source, note);
 }
 
 /** N dòng nhật ký gần nhất (mới → cũ). */
@@ -25,21 +27,17 @@ function recentDates(days) {
 }
 
 /**
- * Các ngày trong `days` ngày gần nhất mà 1 miền CHƯA có dữ liệu trong DB.
- * Bỏ qua hôm nay nếu chưa tới giờ có kết quả (mặc định coi hôm nay là "có thể thiếu").
- * @returns {{ province, dates: string[] }[]}
+ * Các ngày trong `days` ngày gần nhất mà Miền Bắc CHƯA có dữ liệu trong DB.
+ * @returns {string[]} (mới → cũ)
  */
-export function getMissingDates(provinces = ['mien-bac'], days = 30) {
+export function getMissingDates(days = 30) {
   const db = getDb();
   const wanted = recentDates(days);
   const from = wanted[wanted.length - 1];
 
-  return provinces.map((province) => {
-    const rows = db
-      .prepare('SELECT DISTINCT draw_date FROM draws WHERE province = ? AND draw_date >= ?')
-      .all(province, from);
-    const have = new Set(rows.map((r) => r.draw_date));
-    const dates = wanted.filter((dt) => !have.has(dt));
-    return { province, dates };
-  });
+  const rows = db
+    .prepare('SELECT DISTINCT draw_date FROM draws WHERE province = ? AND draw_date >= ?')
+    .all(PROVINCE, from);
+  const have = new Set(rows.map((r) => r.draw_date));
+  return wanted.filter((dt) => !have.has(dt));
 }

@@ -8,21 +8,20 @@ export function GET({ url }) {
   return json(listDrawsWithCount({ page, pageSize }));
 }
 
-// POST /api/results — lưu một kỳ mới
-// Body: { draw_date, province, prizes, skip_if_exists? }
+// POST /api/results — lưu một kỳ mới (Miền Bắc)
+// Body: { draw_date, prizes, skip_if_exists? }
 export async function POST({ request }) {
-  const body = await request.json();
-  const { draw_date, province, prizes, skip_if_exists } = body;
-  if (!draw_date || !province || !prizes) {
-    return json({ error: 'Thiếu thông tin bắt buộc: draw_date, province, prizes' }, { status: 400 });
+  const { draw_date, prizes, skip_if_exists } = await request.json();
+  if (!draw_date || !prizes) {
+    return json({ error: 'Thiếu thông tin bắt buộc: draw_date, prizes' }, { status: 400 });
   }
-  const existing = findDraw(draw_date, province);
+  const existing = findDraw(draw_date);
   if (existing) {
     if (skip_if_exists) {
       return json({ success: true, skipped: true, existingId: existing.id }, { status: 200 });
     }
-    return json({ error: `Kỳ ngày ${draw_date} (${province}) đã tồn tại (ID: ${existing.id})` }, { status: 409 });
+    return json({ error: `Kỳ ngày ${draw_date} đã tồn tại (ID: ${existing.id})` }, { status: 409 });
   }
-  const drawId = saveDraw(draw_date, province, prizes);
+  const drawId = saveDraw(draw_date, prizes);
   return json({ success: true, drawId }, { status: 201 });
 }

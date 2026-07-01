@@ -10,7 +10,6 @@
   const DAYS    = ['T2','T3','T4','T5','T6','T7','CN'];
   const MONTHS  = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
                    'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-  const PROVINCE_SHORT = { 'mien-bac': 'MB', 'mien-trung': 'MT', 'mien-nam': 'MN' };
   const PRIZE_LABEL = {
     giai_db: 'ĐB', giai_nhat: 'Nhất', giai_nhi: 'Nhì',
     giai_ba: 'Ba', giai_tu: 'Tư', giai_nam: 'Năm', giai_sau: 'Sáu', giai_bay: 'Bảy',
@@ -147,9 +146,6 @@
               {#each draws as draw}
                 {@const heat = pairHeat(draw.gdb_pair)}
                 <div class="flex items-center gap-1">
-                  {#if draws.length > 1}
-                    <span class="text-[9px] text-gray-400 w-4">{PROVINCE_SHORT[draw.province] ?? '?'}</span>
-                  {/if}
                   <span class="font-mono font-bold text-sm rounded px-0.5
                                {heat || (isSelected ? 'text-amber-700' : 'text-blue-700')}">
                     {draw.gdb_pair ?? '??'}
@@ -217,12 +213,7 @@
 
     {:else if selectedDetails}
       {#each selectedDetails as draw}
-        <div class="px-4 py-4 {selectedDetails.length > 1 ? 'border-b last:border-0' : ''}">
-          {#if selectedDetails.length > 1}
-            <p class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-              {draw.province === 'mien-bac' ? 'Miền Bắc' : draw.province === 'mien-trung' ? 'Miền Trung' : 'Miền Nam'}
-            </p>
-          {/if}
+        <div class="px-4 py-4">
           <div class="grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-4">
             {#each draw.results ?? [] as r}
               <div class="flex items-center gap-2 text-sm">

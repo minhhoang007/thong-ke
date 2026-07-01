@@ -3,12 +3,6 @@
 
   let { data } = $props();
 
-  const PROV_LABEL = {
-    'mien-bac':   'Miền Bắc',
-    'mien-trung': 'Miền Trung',
-    'mien-nam':   'Miền Nam',
-  };
-
   const STATUS_STYLE = {
     saved:   'bg-green-100 text-green-700',
     partial: 'bg-yellow-100 text-yellow-700',
@@ -20,12 +14,10 @@
   let busy    = $state(false);
   let message = $state('');
 
-  // Tổng số ngày thiếu (không tính hôm nay — có thể chưa tới giờ xổ)
-  const totalMissing = $derived(
-    data.missing.reduce((s, m) => s + m.dates.filter(d => d !== data.today).length, 0)
-  );
+  // Ngày thiếu, không tính hôm nay (có thể chưa tới giờ xổ)
+  const missingPast = $derived(data.missing.filter(d => d !== data.today));
 
-  async function backfill(payload, label) {
+  async function backfill(dates, label) {
     if (busy) return;
     busy = true;
     message = `Đang cào ${label}...`;
@@ -33,7 +25,7 @@
       const res  = await fetch('/api/daily-scrape', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
+        body:    JSON.stringify({ dates }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -49,25 +41,9 @@
     }
   }
 
-  function backfillOne(province, date) {
-    backfill({ provinces: [province], dates: [date] }, `${PROV_LABEL[province]} ${date}`);
-  }
-
   function backfillAll() {
-    const payload = { provinces: [], dates: [] };
-    const provSet = new Set();
-    const dateSet = new Set();
-    for (const m of data.missing) {
-      for (const d of m.dates) {
-        if (d === data.today) continue;
-        provSet.add(m.province);
-        dateSet.add(d);
-      }
-    }
-    payload.provinces = [...provSet];
-    payload.dates     = [...dateSet];
-    if (payload.dates.length === 0) { message = 'Không có ngày nào thiếu.'; return; }
-    backfill(payload, `${payload.dates.length} ngày thiếu`);
+    if (missingPast.length === 0) { message = 'Không có ngày nào thiếu.'; return; }
+    backfill(missingPast, `${missingPast.length} ngày thiếu`);
   }
 </script>
 
@@ -75,7 +51,7 @@
 
 <h1 class="text-2xl font-bold mb-2 text-gray-800">Trạng thái dữ liệu</h1>
 <p class="text-sm text-gray-500 mb-5">
-  Theo dõi việc cào kết quả tự động và các ngày bị hụt dữ liệu (30 ngày gần nhất).
+  Theo dõi việc cào kết quả Miền Bắc tự động và các ngày bị hụt dữ liệu (30 ngày gần nhất).
 </p>
 
 {#if message}
@@ -91,43 +67,33 @@
     <div>
       <h2 class="font-semibold text-gray-700">Ngày thiếu dữ liệu</h2>
       <p class="text-xs text-gray-400 mt-0.5">
-        {totalMissing === 0 ? 'Không thiếu ngày nào 🎉' : `${totalMissing} ngày cần cào bù`}
+        {missingPast.length === 0 ? 'Không thiếu ngày nào 🎉' : `${missingPast.length} ngày cần cào bù`}
       </p>
     </div>
-    <button onclick={backfillAll} disabled={busy || totalMissing === 0}
+    <button onclick={backfillAll} disabled={busy || missingPast.length === 0}
       class="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium
              hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
       Cào bù tất cả
     </button>
   </div>
 
-  <div class="divide-y">
-    {#each data.missing as m}
-      <div class="px-4 py-3">
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-medium text-gray-700">{PROV_LABEL[m.province]}</span>
-          <span class="text-xs text-gray-400">
-            {m.dates.filter(d => d !== data.today).length} ngày thiếu
-          </span>
-        </div>
-        {#if m.dates.length === 0}
-          <p class="text-xs text-green-600">Đầy đủ</p>
-        {:else}
-          <div class="flex flex-wrap gap-1.5">
-            {#each m.dates as d}
-              <button onclick={() => backfillOne(m.province, d)} disabled={busy}
-                class="font-mono text-xs px-2 py-1 rounded border transition-colors disabled:opacity-40
-                       {d === data.today
-                         ? 'bg-blue-50 border-blue-200 text-blue-600'
-                         : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}"
-                title={d === data.today ? 'Hôm nay — có thể chưa tới giờ xổ' : 'Bấm để cào bù'}>
-                {d}{d === data.today ? ' (hôm nay)' : ''}
-              </button>
-            {/each}
-          </div>
-        {/if}
+  <div class="px-4 py-3">
+    {#if data.missing.length === 0}
+      <p class="text-sm text-green-600">Đầy đủ dữ liệu 30 ngày gần nhất.</p>
+    {:else}
+      <div class="flex flex-wrap gap-1.5">
+        {#each data.missing as d}
+          <button onclick={() => backfill([d], d)} disabled={busy}
+            class="font-mono text-xs px-2 py-1 rounded border transition-colors disabled:opacity-40
+                   {d === data.today
+                     ? 'bg-blue-50 border-blue-200 text-blue-600'
+                     : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}"
+            title={d === data.today ? 'Hôm nay — có thể chưa tới giờ xổ' : 'Bấm để cào bù'}>
+            {d}{d === data.today ? ' (hôm nay)' : ''}
+          </button>
+        {/each}
       </div>
-    {/each}
+    {/if}
   </div>
 </div>
 
@@ -147,7 +113,6 @@
           <tr class="bg-gray-50 text-gray-500 text-left text-xs">
             <th class="px-3 py-2">Thời điểm (UTC)</th>
             <th class="px-3 py-2">Kỳ</th>
-            <th class="px-3 py-2">Miền</th>
             <th class="px-3 py-2">Trạng thái</th>
             <th class="px-3 py-2">Nguồn / ghi chú</th>
           </tr>
@@ -157,7 +122,6 @@
             <tr class="border-t hover:bg-gray-50">
               <td class="px-3 py-1.5 font-mono text-xs text-gray-500 whitespace-nowrap">{log.run_at}</td>
               <td class="px-3 py-1.5 font-mono text-xs">{log.draw_date}</td>
-              <td class="px-3 py-1.5 text-xs">{PROV_LABEL[log.province] ?? log.province}</td>
               <td class="px-3 py-1.5">
                 <span class="text-xs px-2 py-0.5 rounded font-medium {STATUS_STYLE[log.status] ?? 'bg-gray-100 text-gray-500'}">
                   {log.status}

@@ -3,6 +3,8 @@
 </svelte:head>
 
 <script>
+  import { invalidateAll } from '$app/navigation';
+
   let { data } = $props();
 
   const PRIZE_LABEL = {
@@ -29,12 +31,6 @@
 
   const PRIZE_ORDER = ['giai_db','giai_nhat','giai_nhi','giai_ba','giai_tu','giai_nam','giai_sau','giai_bay'];
 
-  const PROVINCE_LABEL = {
-    'mien-bac':   'Miền Bắc',
-    'mien-trung': 'Miền Trung',
-    'mien-nam':   'Miền Nam',
-  };
-
   // Nhóm kết quả theo giải, đúng thứ tự
   const prizeGroups = $derived.by(() => {
     if (!data.latest?.results) return [];
@@ -49,9 +45,8 @@
   const gdbValue = $derived(prizeGroups.find(g => g.key === 'giai_db')?.values[0] ?? null);
   const otherPrizes = $derived(prizeGroups.filter(g => g.key !== 'giai_db'));
 
-  let scrapeStatus    = $state('idle');
-  let scrapeResults   = $state([]);
-  let scrapeProvinces = $state(['mien-bac']);
+  let scrapeStatus  = $state('idle');
+  let scrapeResults = $state([]);
 
   async function handleDailyScrape() {
     scrapeStatus = 'loading';
@@ -59,11 +54,13 @@
       const res  = await fetch('/api/daily-scrape', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ provinces: scrapeProvinces }),
+        body:    JSON.stringify({}),
       });
       const json = await res.json();
       scrapeResults = json.results ?? [];
       scrapeStatus  = 'done';
+      // Nạp lại dữ liệu server (total, latest, soiCau, todayInDb...) để Dashboard tự cập nhật
+      if (json.saved > 0 || json.partial > 0) await invalidateAll();
     } catch {
       scrapeStatus = 'error';
     }
@@ -84,35 +81,25 @@
         Kết quả {data.todayVN} chưa có — XSMB công bố sau 18:35 (giờ VN)
       </span>
     {:else}
-      <div class="flex flex-col gap-2 items-end">
-        <div class="flex gap-3 text-xs text-gray-600">
-          {#each Object.entries(PROVINCE_LABEL) as [val, label]}
-            <label class="flex items-center gap-1 cursor-pointer select-none">
-              <input type="checkbox" bind:group={scrapeProvinces} value={val} class="accent-blue-600" />
-              {label}
-            </label>
-          {/each}
-        </div>
-        <button onclick={handleDailyScrape}
-          disabled={scrapeStatus === 'loading' || scrapeProvinces.length === 0}
-          class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
-                 {scrapeStatus === 'loading' || scrapeProvinces.length === 0
-                   ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
-                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
-          {#if scrapeStatus === 'loading'}
-            <span class="animate-spin text-base">⟳</span> Đang cập nhật...
-          {:else}
-            ↓ Cập nhật kết quả hôm nay
-          {/if}
-        </button>
-      </div>
+      <button onclick={handleDailyScrape}
+        disabled={scrapeStatus === 'loading'}
+        class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg font-medium transition-colors
+               {scrapeStatus === 'loading'
+                 ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                 : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'}">
+        {#if scrapeStatus === 'loading'}
+          <span class="animate-spin text-base">⟳</span> Đang cập nhật...
+        {:else}
+          ↓ Cập nhật kết quả hôm nay
+        {/if}
+      </button>
     {/if}
 
     {#if scrapeStatus === 'done'}
       <div class="text-xs text-gray-500 flex flex-col gap-1 mt-1">
         {#each scrapeResults as r}
           <span class="flex items-center gap-1.5">
-            <span class="text-gray-400">{r.date} · {PROVINCE_LABEL[r.province] ?? r.province}:</span>
+            <span class="text-gray-400">{r.date}:</span>
             {#if r.status === 'saved'}
               <span class="text-green-600 font-medium">✓ Đã lưu</span>
               {#if r.sourceLabel}
@@ -156,7 +143,7 @@
       {data.latest ? data.latest.draw_date : '—'}
     </p>
     {#if data.latest}
-      <p class="text-xs text-gray-400 mt-0.5">{PROVINCE_LABEL[data.latest.province] ?? data.latest.province}</p>
+      <p class="text-xs text-gray-400 mt-0.5">Miền Bắc</p>
     {/if}
   </div>
   <div class="rounded-xl p-4 bg-white border shadow-sm">
@@ -210,7 +197,7 @@
         <span class="ml-2 text-sm text-gray-400">{data.latest.draw_date}</span>
       </div>
       <span class="text-xs bg-blue-100 text-blue-700 font-medium rounded-full px-3 py-1">
-        {PROVINCE_LABEL[data.latest.province] ?? data.latest.province}
+        Miền Bắc
       </span>
     </div>
 

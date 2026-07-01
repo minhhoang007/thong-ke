@@ -110,22 +110,11 @@ const SOURCE_MINHCHINH = {
   name:  'minhchinh',
   label: 'Minh Chính (minhchinh.com)',
 
-  buildUrl(province, date) {
-    const TODAY = {
-      'mien-bac':   '/xo-so-mien-bac.html',
-      'mien-trung': '/xo-so-mien-trung.html',
-      'mien-nam':   '/xo-so-mien-nam.html',
-    };
-    const PREFIX = {
-      'mien-bac':   '/ket-qua-xo-so-mien-bac',
-      'mien-trung': '/ket-qua-xo-so-mien-trung',
-      'mien-nam':   '/ket-qua-xo-so-mien-nam',
-    };
+  buildUrl(date) {
     const base = 'https://www.minhchinh.com';
-    if (!date) return base + (TODAY[province] ?? TODAY['mien-bac']);
+    if (!date) return `${base}/xo-so-mien-bac.html`;
     const [y, m, d] = date.split('-');
-    const prefix = PREFIX[province] ?? PREFIX['mien-bac'];
-    return `${base}${prefix}/${d}-${m}-${y}.html`;
+    return `${base}/ket-qua-xo-so-mien-bac/${d}-${m}-${y}.html`;
   },
 
   parse(html) {
@@ -156,17 +145,11 @@ const SOURCE_XOSOTHANTAI = {
   name:  'xosothantai',
   label: 'XoSo Thần Tài (xosothantai.com)',
 
-  buildUrl(province, date) {
-    const SLUG = {
-      'mien-bac':   'xs-mien-bac',
-      'mien-trung': 'xs-mien-trung',
-      'mien-nam':   'xs-mien-nam',
-    };
-    const slug = SLUG[province] ?? SLUG['mien-bac'];
+  buildUrl(date) {
     const base = 'https://www.xosothantai.com';
-    if (!date) return `${base}/${slug}.html`;
+    if (!date) return `${base}/xs-mien-bac.html`;
     const [y, m, d] = date.split('-');
-    return `${base}/${slug}-${d}-${m}-${y}.html`;
+    return `${base}/xs-mien-bac-${d}-${m}-${y}.html`;
   },
 
   parse(html) {
@@ -202,17 +185,11 @@ const SOURCE_KETQUAXOSO = {
   name:  'ketquaxoso',
   label: 'Kết Quả Xổ Số (ketquaxoso.com)',
 
-  buildUrl(province, date) {
-    const SLUG = {
-      'mien-bac':   'xo-so-mien-bac',
-      'mien-trung': 'xo-so-mien-trung',
-      'mien-nam':   'xo-so-mien-nam',
-    };
-    const slug = SLUG[province] ?? SLUG['mien-bac'];
+  buildUrl(date) {
     const base = 'https://ketquaxoso.com';
-    if (!date) return `${base}/${slug}/`;
+    if (!date) return `${base}/xo-so-mien-bac/`;
     const [y, m, d] = date.split('-');
-    return `${base}/${slug}/${d}-${m}-${y}/`;
+    return `${base}/xo-so-mien-bac/${d}-${m}-${y}/`;
   },
 
   parse(html) {
@@ -260,10 +237,10 @@ const SOURCES = [
 // ─── API công khai ─────────────────────────────────────────────────────────────
 
 /** Scrape 1 nguồn — reject nếu fetch lỗi hoặc không tìm thấy dữ liệu. */
-async function scrapeSource(src, province, date) {
-  const url    = src.buildUrl(province, date);
+async function scrapeSource(src, date) {
+  const url    = src.buildUrl(date);
   const html   = await fetchHtml(url);
-  const parsed = src.parse(html, province);
+  const parsed = src.parse(html);
   if (parsed.foundCount === 0) throw new Error('Không tìm thấy dữ liệu giải');
   return {
     success:     true,
@@ -278,19 +255,18 @@ async function scrapeSource(src, province, date) {
 }
 
 /**
- * Scrape kết quả xổ số — race 3 nguồn song song, lấy nguồn nào trả về trước.
- * @param {string}      province  'mien-bac' | 'mien-trung' | 'mien-nam'
- * @param {string|null} date      'YYYY-MM-DD' hoặc null = hôm nay
+ * Scrape kết quả xổ số Miền Bắc — race 3 nguồn song song, lấy nguồn về trước.
+ * @param {string|null} date  'YYYY-MM-DD' hoặc null = hôm nay
  */
-export async function scrapeResult(province = 'mien-bac', date = null) {
+export async function scrapeResult(date = null) {
   try {
-    return await Promise.any(SOURCES.map(src => scrapeSource(src, province, date)));
+    return await Promise.any(SOURCES.map(src => scrapeSource(src, date)));
   } catch (err) {
     // AggregateError — tất cả nguồn đều thất bại
     const errors = (err.errors ?? []).map((e, i) => ({
       source: SOURCES[i]?.name,
       error:  e.message,
-      url:    SOURCES[i]?.buildUrl(province, date),
+      url:    SOURCES[i]?.buildUrl(date),
     }));
     return { success: false, error: `Tất cả ${SOURCES.length} nguồn đều thất bại`, errors };
   }

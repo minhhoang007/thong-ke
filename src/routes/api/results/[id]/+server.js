@@ -9,13 +9,12 @@ export function GET({ params }) {
 
 export async function PUT({ params, request }) {
   const id = Number(params.id);
-  const body = await request.json();
-  const { draw_date, province, prizes } = body;
-  if (!draw_date || !province || !prizes) {
+  const { draw_date, prizes } = await request.json();
+  if (!draw_date || !prizes) {
     return json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
   }
   try {
-    updateDraw(id, draw_date, province, prizes);
+    updateDraw(id, draw_date, prizes);
     return json({ success: true });
   } catch {
     return json({ error: 'Cập nhật thất bại' }, { status: 500 });

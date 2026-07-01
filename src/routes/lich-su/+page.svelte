@@ -21,7 +21,6 @@
     { key: 'giai_sau',  label: 'Giải sáu',        count: 3, digits: 3 },
     { key: 'giai_bay',  label: 'Giải bảy',        count: 4, digits: 2 },
   ];
-  const PROVINCE_LABEL = { 'mien-bac': 'Miền Bắc', 'mien-trung': 'Miền Trung', 'mien-nam': 'Miền Nam' };
 
   // ── State danh sách ──
   // Dùng $effect để sync từ server data (cần thiết khi invalidateAll() sau delete)
@@ -78,22 +77,20 @@
   let searchFrom     = $state('');
   let searchTo       = $state('');
   let searchPair     = $state('');
-  let searchProvince = $state('');
   let searchResults  = $state(null); // null = chưa tìm, [] = không thấy, [...] = có kết quả
   let searching      = $state(false);
 
   async function handleSearch() {
     const pair = searchPair.trim();
     if (pair && !/^\d{2}$/.test(pair)) { alert('Cặp số phải đúng 2 chữ số (00–99)'); return; }
-    if (!searchFrom && !searchTo && !pair && !searchProvince) {
+    if (!searchFrom && !searchTo && !pair) {
       alert('Nhập ít nhất 1 điều kiện tìm kiếm'); return;
     }
     searching = true;
     const params = new URLSearchParams();
-    if (searchFrom)    params.set('from', searchFrom);
-    if (searchTo)      params.set('to', searchTo);
-    if (pair)          params.set('pair', pair);
-    if (searchProvince) params.set('province', searchProvince);
+    if (searchFrom) params.set('from', searchFrom);
+    if (searchTo)   params.set('to', searchTo);
+    if (pair)       params.set('pair', pair);
     const res  = await fetch(`/api/results/search?${params}`);
     const json = await res.json();
     searchResults = json.draws ?? [];
@@ -101,14 +98,13 @@
   }
 
   function clearSearch() {
-    searchFrom = searchTo = searchPair = searchProvince = '';
+    searchFrom = searchTo = searchPair = '';
     searchResults = null;
   }
 
   // ── Chỉnh sửa ──
   let editingId     = $state(null);
   let editDate      = $state('');
-  let editProvince  = $state('');
   let editPrizes    = $state({});
   let editStatus    = $state('idle');
   let editMessage   = $state('');
@@ -117,7 +113,6 @@
     if (!expandedData) return;
     editingId    = expandedData.id;
     editDate     = expandedData.draw_date;
-    editProvince = expandedData.province;
 
     // Gom kết quả theo prize_name
     const grouped = {};
@@ -151,7 +146,7 @@
       const res  = await fetch(`/api/results/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draw_date: editDate, province: editProvince, prizes: prizesPayload }),
+        body: JSON.stringify({ draw_date: editDate, prizes: prizesPayload }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -159,7 +154,7 @@
         editMessage = 'Đã cập nhật.';
         // Refresh row trong danh sách
         draws = draws.map(d => d.id === editingId
-          ? { ...d, draw_date: editDate, province: editProvince }
+          ? { ...d, draw_date: editDate }
           : d
         );
         // Reload expanded data
@@ -197,7 +192,7 @@
       {/if}
     </summary>
     <div class="px-4 pb-4 border-t">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
         <div>
           <label class="text-xs text-gray-500 block mb-1">Từ ngày</label>
           <input type="date" bind:value={searchFrom}
@@ -214,17 +209,6 @@
             placeholder="vd: 73"
             class="w-full border rounded-lg px-2 py-1.5 text-sm font-mono
                    focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        </div>
-        <div>
-          <label class="text-xs text-gray-500 block mb-1">Khu vực</label>
-          <select bind:value={searchProvince}
-            class="w-full border rounded-lg px-2 py-1.5 text-sm bg-white
-                   focus:outline-none focus:ring-2 focus:ring-blue-400">
-            <option value="">Tất cả</option>
-            <option value="mien-bac">Miền Bắc</option>
-            <option value="mien-trung">Miền Trung</option>
-            <option value="mien-nam">Miền Nam</option>
-          </select>
         </div>
       </div>
       <div class="mt-3 flex gap-2 items-center flex-wrap">
@@ -264,7 +248,6 @@
           <div class="flex items-center gap-4 px-4 py-3">
             <button onclick={() => toggleExpand(draw.id)} class="flex-1 flex items-center gap-4 text-left min-w-0">
               <span class="text-base font-mono font-semibold text-blue-700 w-28 shrink-0">{draw.draw_date}</span>
-              <span class="text-sm text-gray-500 shrink-0">{PROVINCE_LABEL[draw.province] ?? draw.province}</span>
               <span class="text-xs text-gray-400 ml-auto shrink-0">{draw.result_count} số</span>
               <span class="text-gray-400 text-sm ml-2 shrink-0">{expandedId === draw.id ? '▲' : '▼'}</span>
             </button>
@@ -312,7 +295,6 @@
         <div class="flex items-center gap-4 px-4 py-3">
           <button onclick={() => toggleExpand(draw.id)} class="flex-1 flex items-center gap-4 text-left min-w-0">
             <span class="text-base font-mono font-semibold text-blue-700 w-28 shrink-0">{draw.draw_date}</span>
-            <span class="text-sm text-gray-500 shrink-0">{PROVINCE_LABEL[draw.province] ?? draw.province}</span>
             <span class="text-xs text-gray-400 ml-auto shrink-0">{draw.result_count} số</span>
             <span class="text-gray-400 text-sm ml-2 shrink-0">{expandedId === draw.id ? '▲' : '▼'}</span>
           </button>
@@ -332,21 +314,10 @@
             {:else if editingId === draw.id}
               <!-- ── Form chỉnh sửa ── -->
               <div class="px-4 py-4">
-                <div class="flex gap-4 mb-4 flex-wrap">
-                  <div>
-                    <label for="edit-date-{draw.id}" class="block text-xs font-medium text-gray-600 mb-1">Ngày xổ</label>
-                    <input id="edit-date-{draw.id}" type="date" bind:value={editDate}
-                      class="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                  </div>
-                  <div>
-                    <label for="edit-province-{draw.id}" class="block text-xs font-medium text-gray-600 mb-1">Khu vực</label>
-                    <select id="edit-province-{draw.id}" bind:value={editProvince}
-                      class="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-                      <option value="mien-bac">Miền Bắc</option>
-                      <option value="mien-trung">Miền Trung</option>
-                      <option value="mien-nam">Miền Nam</option>
-                    </select>
-                  </div>
+                <div class="mb-4">
+                  <label for="edit-date-{draw.id}" class="block text-xs font-medium text-gray-600 mb-1">Ngày xổ</label>
+                  <input id="edit-date-{draw.id}" type="date" bind:value={editDate}
+                    class="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 </div>
 
                 <div class="space-y-2 mb-4">
