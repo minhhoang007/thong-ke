@@ -24,9 +24,9 @@
 
   // ── State danh sách ──
   // Dùng $effect để sync từ server data (cần thiết khi invalidateAll() sau delete)
-  let draws      = $state([]);
-  let total      = $state(0);
-  let hasMore    = $state(false);
+  let draws      = $state(data.draws);
+  let total      = $state(data.total);
+  let hasMore    = $state(data.hasMore);
   let loadPage   = $state(2);
   let loadingMore = $state(false);
 

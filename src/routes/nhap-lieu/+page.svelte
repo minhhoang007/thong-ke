@@ -90,7 +90,7 @@
   }
 
   // ── State Scrape hàng loạt ────────────────────────────────────────
-  const MAX_BATCH_DAYS = 60;
+  const MAX_BATCH_DAYS = 100;
   let batchFromDate   = $state((() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })());
   let batchToDate     = $state(today);
   let batchStatus     = $state('idle'); // 'idle' | 'running' | 'done'
@@ -166,6 +166,14 @@
     batchStatus  = 'idle';
     batchItems   = [];
     batchAborted = false;
+  }
+
+  function quickBackfill100() {
+    const d = new Date();
+    d.setDate(d.getDate() - (MAX_BATCH_DAYS - 1));
+    batchFromDate = d.toISOString().slice(0, 10);
+    batchToDate   = today;
+    handleBatchScrape();
   }
 </script>
 
@@ -275,10 +283,16 @@
       </div>
     </div>
 
-    <button onclick={handleBatchScrape}
-      class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
-      Bắt đầu scrape {batchDayCount()} ngày
-    </button>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick={handleBatchScrape}
+        class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+        Bắt đầu scrape {batchDayCount()} ngày
+      </button>
+      <button onclick={quickBackfill100}
+        class="px-6 py-2.5 border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-lg text-sm font-medium transition-colors">
+        ⚡ {MAX_BATCH_DAYS} ngày gần nhất
+      </button>
+    </div>
 
   {:else}
     <!-- Progress header -->
