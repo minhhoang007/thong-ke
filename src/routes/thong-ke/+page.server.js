@@ -4,12 +4,20 @@ import {
   getPairCoOccurrence, getDauDuoiStats, getTongGDBStats,
   getFrequencyComparison,
 } from '$lib/db/queries/stats.js';
+import { boundedInt } from '$lib/server/validation.js';
+
+const VALID_PRIZES = new Set(['all', 'giai_db', 'giai_nhat', 'giai_nhi', 'giai_ba', 'giai_tu', 'giai_nam', 'giai_sau', 'giai_bay']);
 
 export function load({ url }) {
-  const year  = url.searchParams.get('year')   || null;
-  const month = url.searchParams.get('month')  || null;
-  const prize = url.searchParams.get('prize')  || 'all';
-  const win   = parseInt(url.searchParams.get('window')) || null;
+  const rawYear = url.searchParams.get('year');
+  const rawMonth = url.searchParams.get('month');
+  const rawPrize = url.searchParams.get('prize') || 'all';
+  const year = /^20\d{2}$/.test(rawYear ?? '') ? rawYear : null;
+  const month = /^(?:[1-9]|1[0-2])$/.test(rawMonth ?? '') ? rawMonth : null;
+  const prize = VALID_PRIZES.has(rawPrize) ? rawPrize : 'all';
+  const win = url.searchParams.has('window')
+    ? boundedInt(url.searchParams.get('window'), 30, { min: 1, max: 365 })
+    : null;
 
   // window (N kỳ gần nhất) được ưu tiên hơn year/month filter
   const stats = win

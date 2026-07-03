@@ -655,6 +655,88 @@ export function getTrendData(topN = 5) {
 // Ensemble Score — kết hợp 5 tín hiệu thành điểm 0-100 cho mỗi cặp
 // ---------------------------------------------------------------------------
 
+const PAIRS_100 = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, '0'));
+const ENSEMBLE_WEIGHTS = Object.freeze({ gan: 0.35, freq30: 0.25, trend: 0.20, caulo: 0.10, longTerm: 0.10 });
+
+function buildPairHistory(draws, rows) {
+  const lists = new Map(draws.map((draw) => [draw.id, []]));
+  for (const { draw_id, pair } of rows) {
+    if (/^\d{2}$/.test(pair) && lists.has(draw_id)) lists.get(draw_id).push(pair);
+  }
+  const sets = new Map([...lists].map(([id, pairs]) => [id, new Set(pairs)]));
+  return { lists, sets };
+}
+
+/** Tính đúng cùng một bộ tín hiệu cho production và walk-forward backtest. */
+function scoreSnapshot(draws, history) {
+  const totalDraws = draws.length;
+  const recent30 = draws.slice(-30);
+  const recent7 = draws.slice(-7);
+  const recent20 = draws.slice(-20).reverse();
+
+  const ganMap = {}, freq30 = {}, freq7 = {}, freqAll = {}, streakMap = {}, overdueMap = {};
+  for (const pair of PAIRS_100) {
+    ganMap[pair] = totalDraws;
+    freq30[pair] = 0;
+    freq7[pair] = 0;
+    freqAll[pair] = 0;
+    streakMap[pair] = 0;
+  }
+
+  for (const draw of draws) for (const pair of history.lists.get(draw.id) ?? []) freqAll[pair]++;
+  for (const draw of recent30) for (const pair of history.lists.get(draw.id) ?? []) freq30[pair]++;
+  for (const draw of recent7) for (const pair of history.lists.get(draw.id) ?? []) freq7[pair]++;
+
+  for (const pair of PAIRS_100) {
+    const appearances = [];
+    for (let i = 0; i < draws.length; i++) {
+      if (history.sets.get(draws[i].id)?.has(pair)) appearances.push(i);
+    }
+    if (appearances.length) ganMap[pair] = totalDraws - 1 - appearances.at(-1);
+
+    for (const draw of recent20) {
+      if (history.sets.get(draw.id)?.has(pair)) streakMap[pair]++;
+      else break;
+    }
+
+    const gaps = [];
+    for (let i = 1; i < appearances.length; i++) gaps.push(appearances[i] - appearances[i - 1]);
+    let overdueScore = null;
+    if (gaps.length >= 2) {
+      const avg = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+      const std = Math.sqrt(gaps.reduce((sum, gap) => sum + (gap - avg) ** 2, 0) / gaps.length);
+      overdueScore = std > 0 ? (ganMap[pair] - avg) / std : 0;
+    }
+    overdueMap[pair] = overdueScore;
+  }
+
+  const maxGan = Math.max(...Object.values(ganMap), 1);
+  const maxFreq30 = Math.max(...Object.values(freq30), 1);
+  const maxFreqAll = Math.max(...Object.values(freqAll), 1);
+
+  return PAIRS_100.map((pair) => {
+    const rate30 = recent30.length ? freq30[pair] / recent30.length : 0;
+    const rate7 = recent7.length ? freq7[pair] / recent7.length : 0;
+    const s1 = ganMap[pair] / maxGan;
+    const s2 = 1 - freq30[pair] / maxFreq30;
+    const s3 = Math.max(0, Math.min(1, (rate30 - rate7) / 0.25));
+    const s4 = Math.max(0, 1 - streakMap[pair] / 5);
+    const s5 = 1 - freqAll[pair] / maxFreqAll;
+    const ensembleScore = Math.round((s1*ENSEMBLE_WEIGHTS.gan + s2*ENSEMBLE_WEIGHTS.freq30 + s3*ENSEMBLE_WEIGHTS.trend + s4*ENSEMBLE_WEIGHTS.caulo + s5*ENSEMBLE_WEIGHTS.longTerm) * 100);
+    const normalizedOverdue = overdueMap[pair] == null ? 0 : Math.max(0, Math.min(1, overdueMap[pair] / 3));
+
+    return {
+      pair,
+      score: ensembleScore,
+      recommendationScore: Math.round(ensembleScore * 0.7 + normalizedOverdue * 30),
+      trend: rate7 > rate30 + 0.02 ? 'up' : rate7 < rate30 - 0.02 ? 'down' : 'stable',
+      gan: ganMap[pair], count30: freq30[pair], totalCount: freqAll[pair], cauLoStreak: streakMap[pair],
+      overdueScore: overdueMap[pair],
+      signals: { gan: Math.round(s1*100), freq30: Math.round(s2*100), trend: Math.round(s3*100), caulo: Math.round(s4*100), longTerm: Math.round(s5*100) },
+    };
+  });
+}
+
 /**
  * Tín hiệu:
  *   1. Lô gan (35%) — kỳ liên tiếp không ra, cao = "đến hẹn"
@@ -669,125 +751,10 @@ export function getEnsembleData() {
 
 function _getEnsembleData() {
   const db = getDb();
-  const totalDraws = db.prepare('SELECT COUNT(*) as n FROM draws').get().n;
-  if (totalDraws < 10) return null;
-
-  const pairs100 = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, '0'));
-
-  // -- Signal 1: Lô gan --
-  const allDates = db.prepare(
-    'SELECT draw_date FROM draws ORDER BY draw_date ASC, id ASC'
-  ).all().map(r => r.draw_date);
-
-  function countAfter(date) {
-    let lo = 0, hi = allDates.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (allDates[mid] <= date) lo = mid + 1; else hi = mid;
-    }
-    return allDates.length - lo;
-  }
-
-  const lastSeenRows = db.prepare(`
-    SELECT SUBSTR(r.value, -2) as pair, MAX(d.draw_date) as last_date
-    FROM results r JOIN draws d ON d.id = r.draw_id
-    WHERE LENGTH(TRIM(r.value)) >= 2 AND SUBSTR(r.value, -2) GLOB '[0-9][0-9]'
-    GROUP BY SUBSTR(r.value, -2)
-  `).all();
-
-  const ganMap = {};
-  for (const p of pairs100) ganMap[p] = totalDraws;
-  for (const { pair, last_date } of lastSeenRows) {
-    if (/^\d{2}$/.test(pair)) ganMap[pair] = countAfter(last_date);
-  }
-  const maxGan = Math.max(...Object.values(ganMap), 1);
-
-  // -- Signal 2 & 3: Freq 30 kỳ + trend 7 vs 30 --
-  const ids30 = db.prepare(
-    'SELECT id FROM draws ORDER BY draw_date DESC LIMIT 30'
-  ).all().map(r => r.id);
-  const ids7 = ids30.slice(0, 7);
-
-  const freq30 = {}, freq7 = {};
-  for (const p of pairs100) { freq30[p] = 0; freq7[p] = 0; }
-
-  if (ids30.length > 0) {
-    const ph30 = ids30.map(() => '?').join(',');
-    for (const { pair } of db.prepare(
-      `SELECT SUBSTR(value, -2) as pair FROM results WHERE draw_id IN (${ph30})`
-    ).all(...ids30)) { if (/^\d{2}$/.test(pair)) freq30[pair]++; }
-  }
-  if (ids7.length > 0) {
-    const ph7 = ids7.map(() => '?').join(',');
-    for (const { pair } of db.prepare(
-      `SELECT SUBSTR(value, -2) as pair FROM results WHERE draw_id IN (${ph7})`
-    ).all(...ids7)) { if (/^\d{2}$/.test(pair)) freq7[pair]++; }
-  }
-  const maxFreq30 = Math.max(...Object.values(freq30), 1);
-
-  // -- Signal 4: Cầu lô streak (20 kỳ gần nhất) --
-  const idsCau = db.prepare(
-    'SELECT id FROM draws ORDER BY draw_date DESC LIMIT 20'
-  ).all().map(r => r.id);
-
-  const cauDrawSets = new Map(idsCau.map(id => [id, new Set()]));
-  if (idsCau.length > 0) {
-    const ph = idsCau.map(() => '?').join(',');
-    for (const { draw_id, pair } of db.prepare(
-      `SELECT draw_id, SUBSTR(value, -2) as pair FROM results WHERE draw_id IN (${ph})`
-    ).all(...idsCau)) {
-      if (/^\d{2}$/.test(pair) && cauDrawSets.has(draw_id)) cauDrawSets.get(draw_id).add(pair);
-    }
-  }
-  const streakMap = {};
-  for (const pair of pairs100) {
-    let streak = 0;
-    for (const id of idsCau) {
-      if (cauDrawSets.get(id)?.has(pair)) streak++; else break;
-    }
-    streakMap[pair] = streak;
-  }
-
-  // -- Signal 5: Tần suất toàn lịch sử --
-  const freqAll = {};
-  for (const p of pairs100) freqAll[p] = 0;
-  for (const { pair } of db.prepare(`
-    SELECT SUBSTR(r.value, -2) as pair FROM results r
-    WHERE LENGTH(TRIM(r.value)) >= 2 AND SUBSTR(r.value, -2) GLOB '[0-9][0-9]'
-  `).all()) { freqAll[pair]++; }
-  const maxFreqAll = Math.max(...Object.values(freqAll), 1);
-
-  // -- Tổng hợp --
-  const W = { gan: 0.35, freq30: 0.25, trend: 0.20, caulo: 0.10, longTerm: 0.10 };
-
-  const results = pairs100.map(pair => {
-    const rate30 = ids30.length > 0 ? freq30[pair] / ids30.length : 0;
-    const rate7  = ids7.length  > 0 ? freq7[pair]  / ids7.length  : 0;
-
-    const s1 = ganMap[pair] / maxGan;
-    const s2 = 1 - freq30[pair] / maxFreq30;
-    const s3 = Math.max(0, Math.min(1, (rate30 - rate7) / 0.25));
-    const s4 = Math.max(0, 1 - streakMap[pair] / 5);
-    const s5 = 1 - freqAll[pair] / maxFreqAll;
-
-    const score = Math.round((s1*W.gan + s2*W.freq30 + s3*W.trend + s4*W.caulo + s5*W.longTerm) * 100);
-    const trend = rate7 > rate30 + 0.02 ? 'up' : rate7 < rate30 - 0.02 ? 'down' : 'stable';
-
-    return {
-      pair, score, trend,
-      gan:         ganMap[pair],
-      count30:     freq30[pair],
-      totalCount:  freqAll[pair],
-      cauLoStreak: streakMap[pair],
-      signals: {
-        gan:      Math.round(s1 * 100),
-        freq30:   Math.round(s2 * 100),
-        trend:    Math.round(s3 * 100),
-        caulo:    Math.round(s4 * 100),
-        longTerm: Math.round(s5 * 100),
-      },
-    };
-  });
+  const draws = db.prepare('SELECT id, draw_date FROM draws ORDER BY draw_date ASC, id ASC').all();
+  if (draws.length < 10) return null;
+  const rows = db.prepare(`SELECT draw_id, SUBSTR(value, -2) AS pair FROM results WHERE LENGTH(TRIM(value)) >= 2 AND SUBSTR(value, -2) GLOB '[0-9][0-9]'`).all();
+  const results = scoreSnapshot(draws, buildPairHistory(draws, rows));
 
   const sorted = [...results].sort((a, b) => b.score - a.score);
   const byPair = Object.fromEntries(results.map(r => [r.pair, r]));
@@ -797,7 +764,7 @@ function _getEnsembleData() {
     )
   );
 
-  return { sorted, grid, totalDraws, weights: W };
+  return { sorted, grid, totalDraws: draws.length, weights: ENSEMBLE_WEIGHTS };
 }
 
 // ---------------------------------------------------------------------------
@@ -806,10 +773,10 @@ function _getEnsembleData() {
 
 /**
  * Với mỗi kỳ trong testN kỳ cuối cùng:
- *   - Dùng 90 kỳ trước đó làm training data
- *   - Dự đoán top K bằng ensemble đơn giản (lô gan 60% + freq30 40%)
+ *   - Chỉ dùng dữ liệu có trước kỳ cần kiểm tra (walk-forward, không look-ahead)
+ *   - Dự đoán bằng đúng ensemble 5 tín hiệu + gap đang dùng cho khuyến nghị
  *   - Kiểm tra hit (top 1, 3, 5) vs kết quả thực
- * So sánh với xác suất ngẫu nhiên (phân phối hypergeometric, ~26 cặp/kỳ).
+ * So sánh với xác suất ngẫu nhiên theo số cặp unique thực tế của từng kỳ.
  */
 export function runBacktest(testN = 30) {
   return withCache(`backtest_${testN}`, TTL, () => _runBacktest(testN));
@@ -817,60 +784,36 @@ export function runBacktest(testN = 30) {
 
 function _runBacktest(testN) {
   const db = getDb();
-  const allDraws = db.prepare(
-    'SELECT id, draw_date FROM draws ORDER BY draw_date ASC, id ASC'
-  ).all();
+  const allDraws = db.prepare('SELECT id, draw_date FROM draws ORDER BY draw_date ASC, id ASC').all();
   if (allDraws.length < testN + 10) return null;
 
-  // Tải toàn bộ pairs-per-draw một lần (tránh N × query)
   const allPairRows = db.prepare(`
     SELECT draw_id, SUBSTR(value, -2) as pair
     FROM results
     WHERE LENGTH(TRIM(value)) >= 2 AND SUBSTR(value, -2) GLOB '[0-9][0-9]'
   `).all();
-
-  const drawPairs = new Map(allDraws.map(d => [d.id, new Set()]));
-  for (const { draw_id, pair } of allPairRows) {
-    drawPairs.get(draw_id)?.add(pair);
-  }
-
-  const pairs100 = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, '0'));
+  const history = buildPairHistory(allDraws, allPairRows);
   const testStart = allDraws.length - testN;
   const topKs = [1, 3, 5];
   const hits  = [0, 0, 0];
+  const randomProbabilityTotals = [0, 0, 0];
   const rows  = [];
 
   for (let t = testStart; t < allDraws.length; t++) {
-    const train = allDraws.slice(Math.max(0, t - 90), t);
+    const train = allDraws.slice(0, t);
     if (train.length < 10) continue;
-
-    // Lô gan: đi ngược từ mới → cũ, tìm lần xuất hiện gần nhất
-    const gan = {};
-    for (const p of pairs100) gan[p] = train.length;
-    for (let i = train.length - 1; i >= 0; i--) {
-      for (const pair of drawPairs.get(train[i].id) ?? []) {
-        if (gan[pair] === train.length) gan[pair] = train.length - 1 - i;
-      }
-    }
-
-    // Freq 30 kỳ gần nhất trong training
-    const recent30 = train.slice(-30);
-    const f30 = {};
-    for (const p of pairs100) f30[p] = 0;
-    for (const d of recent30) { for (const p of drawPairs.get(d.id) ?? []) if (p in f30) f30[p]++; }
-
-    const maxGan = Math.max(...Object.values(gan), 1);
-    const maxF30 = Math.max(...Object.values(f30), 1);
-
-    const ranked = pairs100
-      .map(p => ({ pair: p, score: (gan[p] / maxGan) * 0.6 + (1 - f30[p] / maxF30) * 0.4 }))
-      .sort((a, b) => b.score - a.score);
-
-    const appeared = drawPairs.get(allDraws[t].id) ?? new Set();
+    const ranked = scoreSnapshot(train, history)
+      .sort((a, b) => b.recommendationScore - a.recommendationScore || a.pair.localeCompare(b.pair));
+    const appeared = history.sets.get(allDraws[t].id) ?? new Set();
     const topSets  = topKs.map(k => new Set(ranked.slice(0, k).map(r => r.pair)));
     const hitFlags = topSets.map(s => [...appeared].some(p => s.has(p)));
 
     hitFlags.forEach((h, i) => { if (h) hits[i]++; });
+    topKs.forEach((k, index) => {
+      let miss = 1;
+      for (let i = 0; i < k; i++) miss *= (100 - appeared.size - i) / (100 - i);
+      randomProbabilityTotals[index] += 1 - miss;
+    });
     rows.push({
       date: allDraws[t].draw_date,
       hit1: hitFlags[0], hit3: hitFlags[1], hit5: hitFlags[2],
@@ -880,20 +823,13 @@ function _runBacktest(testN) {
 
   const n = rows.length;
 
-  // Xác suất ngẫu nhiên (hypergeometric, ~26 cặp/kỳ Miền Bắc)
-  function pRandom(k) {
-    let p = 1;
-    for (let i = 0; i < k; i++) p *= (74 - i) / (100 - i);
-    return +(( 1 - p) * 100).toFixed(1);
-  }
-
   return {
     testN: n,
     hitRates: topKs.map((k, i) => ({
       k,
       hits:   hits[i],
       rate:   n > 0 ? +(hits[i] / n * 100).toFixed(1) : 0,
-      random: pRandom(k),
+      random: n > 0 ? +(randomProbabilityTotals[i] / n * 100).toFixed(1) : 0,
     })),
     results: rows,
   };
@@ -920,15 +856,10 @@ function _getDailyRecommendation(n) {
 
   const gap = getGapStatsAll();
 
-  // Chuẩn hoá overdueScore (Z-score) về [0,1]: 0σ → 0, ≥3σ → 1
-  const normOverdue = (z) => (z == null ? 0 : Math.max(0, Math.min(1, z / 3)));
-
   const merged = ensemble.sorted.map((e) => {
     const g = gap.pairs[e.pair] ?? {};
-    const overdueScore = g.overdueScore ?? null;
-
-    // Kết hợp: 70% điểm ensemble + 30% mức "quá hạn" theo phân tích gap
-    const score = Math.round(e.score * 0.7 + normOverdue(overdueScore) * 100 * 0.3);
+    const overdueScore = e.overdueScore;
+    const score = e.recommendationScore;
 
     const reasons = [];
     if (e.gan >= 10)                    reasons.push(`Lô gan ${e.gan} kỳ`);

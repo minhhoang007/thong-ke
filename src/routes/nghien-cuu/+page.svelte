@@ -117,30 +117,32 @@
 </script>
 
 <!-- Header -->
-<div class="mb-5">
-  <h1 class="text-2xl font-bold text-gray-800 mb-1">Nghiên cứu thống kê</h1>
-  <p class="text-sm text-gray-500 leading-relaxed">
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">Phòng nghiên cứu</div>
+    <h1>Nghiên cứu thống kê</h1>
+    <p>
     Phân tích khoa học kết quả xổ số. Dữ liệu: <strong>{data.totalDraws} kỳ</strong>,
     <strong>{data.totalValues.toLocaleString()} kết quả</strong>.
-  </p>
+    </p>
+  </div>
+  <span class="status-pill">{data.totalValues.toLocaleString()} quan sát</span>
 </div>
 
 <!-- Disclaimer -->
-<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5 text-xs text-amber-800 leading-relaxed">
+<div class="warning-panel mb-5 text-xs leading-relaxed">
   ⚠️ <strong>Lưu ý quan trọng:</strong> Tất cả phân tích dưới đây là thống kê mô tả dựa trên dữ liệu lịch sử.
   Xổ số là trò chơi ngẫu nhiên — không có phương pháp nào đảm bảo trúng thưởng.
   Các chỉ số giúp bạn <em>hiểu dữ liệu</em>, không phải dự đoán tương lai.
 </div>
 
 <!-- Tab navigation -->
-<div class="flex gap-1 mb-5 overflow-x-auto pb-1">
+<div class="segmented-control mb-5" role="tablist" aria-label="Nhóm nghiên cứu">
   {#each TABS as tab}
     <button
       onclick={() => activeTab = tab.id}
-      class="shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-             {activeTab === tab.id
-               ? 'bg-blue-600 text-white shadow-sm'
-               : 'bg-white border text-gray-600 hover:bg-gray-50'}">
+      aria-selected={activeTab === tab.id}
+      class:active={activeTab === tab.id}>
       {tab.label}
     </button>
   {/each}
@@ -153,7 +155,7 @@
   <div class="space-y-4">
 
     <!-- Giải thích -->
-    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900 leading-relaxed">
+    <div class="soft-panel text-sm leading-relaxed text-blue-950">
       <p class="font-semibold mb-1">Kiểm định χ² (Chi-square) — Phân phối đều</p>
       <p>
         Nếu xổ số ngẫu nhiên hoàn toàn, 100 cặp số <strong>phải xuất hiện gần bằng nhau</strong>.
@@ -168,27 +170,27 @@
     </div>
 
     {#if !data.chiSquare}
-      <div class="bg-white border rounded-xl p-8 text-center text-gray-400">Chưa đủ dữ liệu.</div>
+      <div class="surface-card card-pad text-center text-gray-400">Chưa đủ dữ liệu.</div>
     {:else}
       <!-- Kết quả chính -->
       <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+        <div class="metric-card !min-h-0 text-center">
           <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Chi-square (χ²)</p>
           <p class="text-3xl font-bold font-mono {data.chiSquare.significant ? 'text-red-600' : 'text-gray-800'}">
             {data.chiSquare.chi2}
           </p>
         </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+        <div class="metric-card !min-h-0 text-center">
           <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">p-value</p>
           <p class="text-3xl font-bold font-mono {data.chiSquare.significant ? 'text-red-600' : 'text-green-600'}">
             {data.chiSquare.pValue}
           </p>
         </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+        <div class="metric-card !min-h-0 text-center">
           <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Bậc tự do</p>
           <p class="text-3xl font-bold font-mono text-gray-600">{data.chiSquare.df}</p>
         </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+        <div class="metric-card !min-h-0 text-center">
           <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Kỳ vọng / cặp</p>
           <p class="text-3xl font-bold font-mono text-gray-800">{data.chiSquare.expected}</p>
         </div>
@@ -213,7 +215,7 @@
       </div>
 
       <!-- Thống kê phụ -->
-      <div class="bg-white border rounded-xl p-4 shadow-sm">
+      <div class="surface-card card-pad">
         <p class="text-sm font-semibold text-gray-700 mb-3">Chi tiết phân phối</p>
         <div class="grid grid-cols-3 gap-4 text-center text-sm">
           <div>
@@ -283,19 +285,19 @@
 
     <!-- Tổng quan nhanh -->
     <div class="grid grid-cols-3 gap-3">
-      <div class="bg-white border rounded-xl p-3 text-center shadow-sm">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 mb-1">Đang nợ nhiều (Z&gt;2)</p>
         <p class="text-2xl font-bold text-red-600">{data.gapList.filter(g => (g.overdueScore ?? 0) > 2).length}</p>
         <p class="text-xs text-gray-400">cặp</p>
       </div>
-      <div class="bg-white border rounded-xl p-3 text-center shadow-sm">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 mb-1">Khá gan (Z 1–2)</p>
         <p class="text-2xl font-bold text-orange-500">
           {data.gapList.filter(g => { const s = g.overdueScore ?? 0; return s > 1 && s <= 2; }).length}
         </p>
         <p class="text-xs text-gray-400">cặp</p>
       </div>
-      <div class="bg-white border rounded-xl p-3 text-center shadow-sm">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 mb-1">Vừa ra (Z&lt;−0.5)</p>
         <p class="text-2xl font-bold text-green-600">{data.gapList.filter(g => (g.overdueScore ?? 0) < -0.5).length}</p>
         <p class="text-xs text-gray-400">cặp</p>
@@ -303,8 +305,8 @@
     </div>
 
     <!-- Bảng gap -->
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
-      <div class="overflow-x-auto">
+    <div class="surface-card overflow-hidden">
+      <div class="scroll-shell rounded-none border-x-0 border-b-0">
         <table class="w-full text-sm">
           <thead>
             <tr class="bg-gray-50 border-b text-xs text-gray-500 uppercase">
@@ -369,7 +371,7 @@
     </div>
 
     <!-- Chuỗi GĐB 30 kỳ gần nhất -->
-    <div class="bg-white border rounded-xl p-4 shadow-sm">
+    <div class="surface-card card-pad">
       <p class="text-sm font-semibold text-gray-700 mb-3">30 kỳ GĐB gần nhất</p>
       <div class="flex flex-wrap gap-1.5">
         {#each data.gdbLast30 as d, i}
@@ -390,11 +392,11 @@
 
     <!-- ACF chart -->
     {#if data.acf.length === 0}
-      <div class="bg-white border rounded-xl p-8 text-center text-gray-400">
+      <div class="surface-card card-pad text-center text-gray-400">
         Cần ít nhất 15 kỳ GĐB để tính tương quan.
       </div>
     {:else}
-      <div class="bg-white border rounded-xl p-4 shadow-sm">
+      <div class="surface-card card-pad">
         <p class="text-sm font-semibold text-gray-700 mb-1">Biểu đồ ACF (lag 1–{data.acf.length})</p>
         <p class="text-xs text-gray-400 mb-3">Trục ngang: lag (kỳ trước đó) · Trục dọc: hệ số tương quan (−1 đến +1)</p>
         <svg viewBox="0 0 {ACF_W} {ACF_H}" class="w-full max-w-lg" style="height:160px">
@@ -487,7 +489,7 @@
       {/if}
 
       <!-- Bảng số liệu ACF -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="bg-gray-50 border-b px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Chi tiết ACF</div>
         <table class="w-full text-sm">
           <thead>
@@ -546,23 +548,23 @@
 
     <!-- Tổng quan -->
     <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-      <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Kỳ vọng</p>
         <p class="text-2xl font-bold font-mono text-gray-800">{data.ci.mean}</p>
         <p class="text-xs text-gray-400">lần/cặp</p>
       </div>
-      <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">CI 95%</p>
         <p class="text-lg font-bold font-mono text-gray-700">[{data.ci.lo95} – {data.ci.hi95}]</p>
       </div>
-      <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Ngoài CI 95%</p>
         <p class="text-2xl font-bold font-mono {data.outsideCI95 > 10 ? 'text-red-600' : 'text-orange-500'}">
           {data.outsideCI95}
         </p>
         <p class="text-xs text-gray-400">cặp (kỳ vọng ~5)</p>
       </div>
-      <div class="bg-white border rounded-xl p-4 shadow-sm text-center">
+      <div class="metric-card !min-h-0 text-center">
         <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Ngoài CI 99%</p>
         <p class="text-2xl font-bold font-mono {data.outsideCI99 > 5 ? 'text-red-600' : 'text-gray-700'}">
           {data.outsideCI99}
@@ -581,7 +583,7 @@
     </div>
 
     <!-- Lưới 10×10 -->
-    <div class="bg-white border rounded-xl p-4 shadow-sm">
+    <div class="surface-card card-pad">
       <p class="text-sm font-semibold text-gray-700 mb-3">Bản đồ CI toàn bộ 100 cặp</p>
       <div class="grid grid-cols-10 gap-1">
         {#each data.pairsCI as p}
@@ -596,7 +598,7 @@
 
     <!-- Danh sách cặp ngoài CI -->
     {#if data.pairsOutside.length > 0}
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="bg-gray-50 border-b px-4 py-2.5 text-sm font-semibold text-gray-700">
           Cặp ngoài khoảng tin cậy 95% ({data.pairsOutside.length} cặp)
         </div>

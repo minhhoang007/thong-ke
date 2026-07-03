@@ -5,8 +5,7 @@
  * Thêm nguồn mới: push 1 object { name, label, buildUrl, parse } vào SOURCES.
  */
 
-import https from 'https';
-import http  from 'http';
+import { PRIZE_SCHEMA } from '../server/validation.js';
 
 // ─── Hằng số chung ────────────────────────────────────────────────────────────
 
@@ -17,49 +16,57 @@ const PRIZE_COUNT = {
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
 
-function fetchHtml(url, redirectCount = 0) {
-  return new Promise((resolve, reject) => {
-    if (redirectCount > 5) return reject(new Error('Quá nhiều redirect'));
+const ALLOWED_HOSTS = new Set(['www.minhchinh.com', 'minhchinh.com', 'www.xosothantai.com', 'xosothantai.com', 'ketquaxoso.com', 'www.ketquaxoso.com']);
+const MAX_HTML_BYTES = 2 * 1024 * 1024;
 
-    const parsedUrl = new URL(url);
-    const proto     = parsedUrl.protocol === 'https:' ? https : http;
-    const options   = {
-      hostname: parsedUrl.hostname,
-      path:     parsedUrl.pathname + parsedUrl.search,
-      method:   'GET',
-      rejectUnauthorized: false,
-      headers: {
-        'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'Accept':          'text/html,application/xhtml+xml,*/*;q=0.8',
-        'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.5',
-        'Connection':      'keep-alive',
-      },
-    };
+async function fetchHtml(initialUrl) {
+  const timeoutMs = Math.min(30_000, Math.max(1_000, Number.parseInt(process.env.SCRAPE_TIMEOUT_MS ?? '10000', 10) || 10_000));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`Timeout ${timeoutMs}ms`)), timeoutMs);
 
-    const req = proto.request(options, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        const next = res.headers.location.startsWith('http')
-          ? res.headers.location
-          : `${parsedUrl.protocol}//${parsedUrl.hostname}${res.headers.location}`;
-        res.resume();
-        return resolve(fetchHtml(next, redirectCount + 1));
+  try {
+    let current = new URL(initialUrl);
+    for (let redirects = 0; redirects <= 5; redirects++) {
+      if (current.protocol !== 'https:' || !ALLOWED_HOSTS.has(current.hostname)) {
+        throw new Error('Nguồn hoặc redirect không được phép');
       }
-      if (res.statusCode !== 200) {
-        res.resume();
-        return reject(new Error(`HTTP ${res.statusCode}`));
+      const response = await fetch(current, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; XoSoStats/1.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'vi-VN,vi;q=0.9',
+        },
+      });
+      if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
+        current = new URL(response.headers.get('location'), current);
+        continue;
       }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const declared = Number(response.headers.get('content-length') ?? 0);
+      if (declared > MAX_HTML_BYTES) throw new Error('Response quá lớn');
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Response không có nội dung');
       const chunks = [];
-      res.on('data', chunk => chunks.push(chunk));
-      res.on('end',  () => resolve(Buffer.concat(chunks).toString('utf-8')));
-      res.on('error', reject);
-    });
-
-    // Cho phép cấu hình qua env var — giảm xuống 10s để race nhanh hơn
-    const timeoutMs = parseInt(process.env.SCRAPE_TIMEOUT_MS ?? '10000');
-    req.on('error', reject);
-    req.setTimeout(timeoutMs, () => { req.destroy(new Error(`Timeout ${timeoutMs}ms`)); });
-    req.end();
-  });
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_HTML_BYTES) {
+          await reader.cancel();
+          throw new Error('Response quá lớn');
+        }
+        chunks.push(value);
+      }
+      return new TextDecoder('utf-8').decode(Buffer.concat(chunks));
+    }
+    throw new Error('Quá nhiều redirect');
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ─── Helper dùng chung cho parser ─────────────────────────────────────────────
@@ -77,11 +84,11 @@ function extractDataAttrs(section) {
 function extractSpanNumbers(section) {
   const vals = [];
   let m;
-  const re = /<span[^>]*>(\d{4,6})<\/span>/g;
+  const re = /<span[^>]*>\s*(\d{2,6})\s*<\/span>/g;
   while ((m = re.exec(section)) !== null) vals.push(m[1]);
   if (vals.length) return vals;
   // fallback: số ≥4 chữ số xuất hiện trong text thuần
-  const rePlain = /\b(\d{4,6})\b/g;
+  const rePlain = /\b(\d{2,6})\b/g;
   while ((m = rePlain.exec(section)) !== null) vals.push(m[1]);
   return vals;
 }
@@ -96,10 +103,11 @@ function sliceAround(html, keyword, len = 400) {
 function makePrizes(map) {
   const prizes = {};
   let found = 0;
-  for (const key of Object.keys(PRIZE_COUNT)) {
-    const vals = map[key] ?? [];
-    if (vals.length) found++;
-    prizes[key] = PRIZE_COUNT[key] === 1 ? (vals[0] ?? '') : vals.slice(0, PRIZE_COUNT[key]);
+  for (const [key, count] of Object.entries(PRIZE_COUNT)) {
+    const digits = PRIZE_SCHEMA[key].digits;
+    const vals = (map[key] ?? []).filter((value) => new RegExp(`^\\d{${digits}}$`).test(value)).slice(0, count);
+    if (vals.length === count) found++;
+    prizes[key] = count === 1 ? (vals[0] ?? '') : vals;
   }
   return { prizes, foundCount: found, totalPrizes: Object.keys(PRIZE_COUNT).length };
 }
@@ -131,7 +139,7 @@ const SOURCE_MINHCHINH = {
     };
     const map = {};
     for (const [htmlClass, appKey] of Object.entries(CLASS_MAP)) {
-      const re    = new RegExp(`<td[^>]+class="${htmlClass}"[^>]*>([\\s\\S]*?)(?=<td|</tr>)`, 'i');
+      const re    = new RegExp(`<td[^>]+class="[^"]*\\b${htmlClass}\\b[^"]*"[^>]*>([\\s\\S]*?)(?=<td|</tr>)`, 'i');
       const match = re.exec(html);
       map[appKey] = match ? extractDataAttrs(match[1]) : [];
     }
@@ -259,16 +267,20 @@ async function scrapeSource(src, date) {
  * @param {string|null} date  'YYYY-MM-DD' hoặc null = hôm nay
  */
 export async function scrapeResult(date = null) {
-  try {
-    return await Promise.any(SOURCES.map(src => scrapeSource(src, date)));
-  } catch (err) {
-    // AggregateError — tất cả nguồn đều thất bại
-    const errors = (err.errors ?? []).map((e, i) => ({
-      source: SOURCES[i]?.name,
-      error:  e.message,
-      url:    SOURCES[i]?.buildUrl(date),
-    }));
-    return { success: false, error: `Tất cả ${SOURCES.length} nguồn đều thất bại`, errors };
+  const settled = await Promise.allSettled(SOURCES.map(src => scrapeSource(src, date)));
+  const successes = settled
+    .map((result, index) => result.status === 'fulfilled' ? { ...result.value, priority: index } : null)
+    .filter(Boolean);
+  const complete = successes.find((result) => !result.partial);
+  if (complete) return complete;
+  if (successes.length) {
+    return successes.sort((a, b) => b.foundCount - a.foundCount || a.priority - b.priority)[0];
   }
-}
 
+  const errors = settled.map((result, index) => ({
+    source: SOURCES[index].name,
+    error: result.status === 'rejected' ? String(result.reason?.message ?? result.reason) : 'Không có dữ liệu',
+    url: SOURCES[index].buildUrl(date),
+  }));
+  return { success: false, error: `Tất cả ${SOURCES.length} nguồn đều thất bại`, errors };
+}

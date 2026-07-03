@@ -1,10 +1,11 @@
 import { getDrawsForMonth } from '$lib/db/queries/results.js';
 import { nowVN } from '$lib/utils/time.js';
+import { boundedInt } from '$lib/server/validation.js';
 
 export function load({ url }) {
   const vn    = nowVN();
-  const year  = parseInt(url.searchParams.get('year'))  || vn.getUTCFullYear();
-  const month = parseInt(url.searchParams.get('month')) || vn.getUTCMonth() + 1;
+  const year  = boundedInt(url.searchParams.get('year'), vn.getUTCFullYear(), { min: 2000, max: vn.getUTCFullYear() + 1 });
+  const month = boundedInt(url.searchParams.get('month'), vn.getUTCMonth() + 1, { min: 1, max: 12 });
 
   const draws = getDrawsForMonth(year, month);
 

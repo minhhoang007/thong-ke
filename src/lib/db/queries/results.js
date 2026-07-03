@@ -10,7 +10,7 @@ export function saveDraw(draw_date, prizes) {
     const ins = db.prepare('INSERT INTO results (draw_id, prize_name, value) VALUES (?, ?, ?)');
     for (const [prizeName, values] of Object.entries(prizes)) {
       for (const val of (Array.isArray(values) ? values : [values])) {
-        if (val && val.trim()) ins.run(id, prizeName, val.trim());
+        if (val && String(val).trim()) ins.run(id, prizeName, String(val).trim());
       }
     }
     return id;
@@ -64,7 +64,8 @@ export function getDrawWithResults(id) {
 export function updateDraw(id, draw_date, prizes) {
   const db = getDb();
   const result = db.transaction(() => {
-    db.prepare('UPDATE draws SET draw_date = ? WHERE id = ?').run(draw_date, id);
+    const updated = db.prepare('UPDATE draws SET draw_date = ? WHERE id = ?').run(draw_date, id);
+    if (updated.changes === 0) throw new Error('DRAW_NOT_FOUND');
     db.prepare('DELETE FROM results WHERE draw_id = ?').run(id);
     const ins = db.prepare('INSERT INTO results (draw_id, prize_name, value) VALUES (?, ?, ?)');
     for (const [prizeName, values] of Object.entries(prizes)) {

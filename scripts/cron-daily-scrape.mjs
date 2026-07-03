@@ -11,9 +11,8 @@ const dir = dirname(fileURLToPath(import.meta.url));
 // Set DATABASE_PATH trước khi import module db
 process.env.DATABASE_PATH = resolve(dir, '../data/xoso.db');
 
-// Static imports — hoạt động tốt hơn dynamic import trên Windows
-import { scrapeResult } from '../src/lib/logic/scraper.js';
-import { saveDraw, findDraw } from '../src/lib/db/queries/results.js';
+// Import sau khi set DATABASE_PATH vì ESM static import luôn được evaluate trước phần thân module.
+const { scrapeAndSave } = await import('../src/lib/logic/scrape-save.js');
 
 // Ngày hôm nay theo giờ VN (UTC+7)
 const nowVN   = new Date(Date.now() + 7 * 3600 * 1000);
@@ -22,20 +21,18 @@ const tag     = `[cron ${new Date().toISOString().slice(0, 16)}]`;
 
 console.log(`${tag} Kiểm tra kỳ ${todayVN} (Miền Bắc)...`);
 
-if (findDraw(todayVN, 'mien-bac')) {
-  console.log(`${tag} Đã có dữ liệu ${todayVN} — bỏ qua.`);
-  process.exit(0);
-}
-
 console.log(`${tag} Đang scrape...`);
 try {
-  const result = await scrapeResult('mien-bac', todayVN);
-  if (!result.success) {
-    console.error(`${tag} Scrape thất bại:`, result.error);
+  const result = await scrapeAndSave(todayVN);
+  if (result.status === 'skipped') {
+    console.log(`${tag} Đã có dữ liệu ${todayVN} — bỏ qua.`);
+    process.exit(0);
+  }
+  if (result.status !== 'saved' && result.status !== 'partial') {
+    console.error(`${tag} Scrape thất bại:`, result.error ?? result.errors ?? result.status);
     process.exit(1);
   }
-  const drawId = saveDraw(todayVN, 'mien-bac', result.prizes);
-  console.log(`${tag} ✓ Đã lưu kỳ ${todayVN} — drawId: ${drawId}`);
+  console.log(`${tag} ✓ Đã lưu kỳ ${todayVN} — drawId: ${result.drawId}${result.partial ? ' (thiếu giải)' : ''}`);
 } catch (err) {
   console.error(`${tag} Lỗi:`, err.message);
   process.exit(1);

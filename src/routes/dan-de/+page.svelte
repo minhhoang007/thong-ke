@@ -117,11 +117,13 @@
   );
 </script>
 
-<h1 class="text-2xl font-bold mb-2 text-gray-800">Dàn Đề</h1>
+<div class="page-heading">
+  <div><div class="eyebrow">Công cụ tạo bộ số</div><h1>Dàn Đề</h1><p>Tạo và đánh giá nhanh một dàn số từ hạt nhân theo công thức đã chọn.</p></div>
+</div>
 <p class="text-sm text-gray-500 mb-6">Từ 1 số hạt nhân, tạo bộ cặp đề theo công thức dân gian</p>
 
 <!-- Giải thích -->
-<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm">
+<div class="warning-panel mb-6 text-sm">
   <p class="font-semibold text-amber-800 mb-1">Dàn đề là gì?</p>
   <p class="text-amber-700 mb-2">
     Người chơi chọn 1 số "hạt nhân" (thường là 2 số cuối giải đặc biệt, hoặc số linh cảm)
@@ -134,15 +136,15 @@
 <div class="grid md:grid-cols-2 gap-6 mb-6">
 
   <!-- Input số hạt nhân -->
-  <div class="bg-white border rounded-xl p-5 shadow-sm">
-    <label class="block text-sm font-semibold text-gray-700 mb-3">Số hạt nhân (00–99)</label>
+  <div class="surface-card card-pad">
+    <label for="seed-number" class="block text-sm font-semibold text-gray-700 mb-3">Số hạt nhân (00–99)</label>
     <div class="flex items-center gap-3">
-      <input
+      <input id="seed-number"
         type="text" inputmode="numeric"
         placeholder="47"
         oninput={handleInput}
         maxlength="2"
-        class="w-24 h-14 text-center font-mono text-3xl font-bold border-2 rounded-xl
+        class="field-control mono-number !h-14 !w-24 text-center !text-3xl !font-bold
                focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400
                {seed.length === 2 ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-400'}"
       />
@@ -157,7 +159,7 @@
   </div>
 
   <!-- Chọn công thức -->
-  <div class="bg-white border rounded-xl p-5 shadow-sm">
+  <div class="surface-card card-pad">
     <p class="text-sm font-semibold text-gray-700 mb-3">Công thức</p>
     <div class="space-y-2">
       {#each FORMULAS as f}
@@ -176,12 +178,12 @@
 
 <!-- Kết quả dàn đề -->
 {#if seed.length < 2}
-  <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
+  <div class="surface-card card-pad text-center">
     <p class="text-gray-400 text-sm">Nhập số hạt nhân (2 chữ số) để xem dàn đề.</p>
   </div>
 
 {:else if danDe.length === 0}
-  <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
+  <div class="surface-card card-pad text-center">
     <p class="text-gray-400 text-sm">Không tạo được dàn với công thức này.</p>
   </div>
 
@@ -212,7 +214,7 @@
   </div>
 
   <!-- Dàn cặp -->
-  <div class="bg-white border rounded-xl p-4 shadow-sm">
+  <div class="surface-card card-pad">
     <div class="flex flex-wrap gap-2">
       {#each danDe as pair}
         {@const info = data.freqMap[pair]}
@@ -239,7 +241,7 @@
       <summary class="cursor-pointer text-sm text-gray-500 hover:text-gray-700 select-none">
         Xem bảng chi tiết ▼
       </summary>
-      <div class="mt-2 bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card mt-2 overflow-hidden">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b bg-gray-50 text-xs text-gray-500 font-medium">

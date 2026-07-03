@@ -8,9 +8,12 @@ const PRIZE_LABELS = {
 
 // GET /api/export?year=&month=&prize= — trả về CSV tần suất
 export function GET({ url }) {
-  const year  = url.searchParams.get('year')  || null;
-  const month = url.searchParams.get('month') || null;
-  const prize = url.searchParams.get('prize') || 'all';
+  const yearRaw = url.searchParams.get('year');
+  const monthRaw = url.searchParams.get('month');
+  const prizeRaw = url.searchParams.get('prize') || 'all';
+  const year = /^20\d{2}$/.test(yearRaw ?? '') ? yearRaw : null;
+  const month = /^(?:[1-9]|1[0-2])$/.test(monthRaw ?? '') ? monthRaw : null;
+  const prize = prizeRaw in PRIZE_LABELS ? prizeRaw : 'all';
 
   const { grid, totalDraws, totalValues } = getFrequencyStats(year, month, prize);
   const prizeLabel = PRIZE_LABELS[prize] ?? prize;

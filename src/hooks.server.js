@@ -1,12 +1,38 @@
 import { scrapeAndSave } from '$lib/logic/scrape-save.js';
 import { nowVN, todayVN } from '$lib/utils/time.js';
 import { env } from '$env/dynamic/private';
+import { hasAdminCredentials, isAdminRequest } from '$lib/server/auth.js';
 
 const SCRAPE_HOUR = 18;
 const SCRAPE_MIN  = 45;
 
 // AUTO_SCRAPE_ENABLED=false → tắt scheduler in-process (dùng khi có cron ngoài gọi /api/daily-scrape)
-const ENABLED = (env.AUTO_SCRAPE_ENABLED ?? 'true').toLowerCase() !== 'false';
+const ENABLED = (env.AUTO_SCRAPE_ENABLED ?? 'false').toLowerCase() === 'true';
+
+function requiresAdmin(url, method) {
+  if (url.pathname.startsWith('/nhap-lieu')) return true;
+  if (url.pathname === '/api/scrape') return true;
+  if (url.pathname === '/api/results' && method === 'POST') return true;
+  return /^\/api\/results\/[^/]+$/.test(url.pathname) && ['PUT', 'DELETE'].includes(method);
+}
+
+export async function handle({ event, resolve }) {
+  if (!requiresAdmin(event.url, event.request.method)) return resolve(event);
+
+  const origin = event.request.headers.get('origin');
+  if (origin && origin !== event.url.origin) return new Response('Cross-origin request rejected.', { status: 403 });
+
+  if (!hasAdminCredentials()) {
+    return new Response('Admin access is not configured.', { status: 503 });
+  }
+  if (!isAdminRequest(event.request)) {
+    return new Response('Authentication required.', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="XoSo Admin", charset="UTF-8"' },
+    });
+  }
+  return resolve(event);
+}
 
 function msUntilNext() {
   const vn   = nowVN();

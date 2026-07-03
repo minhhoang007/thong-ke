@@ -39,6 +39,23 @@ CREATE INDEX IF NOT EXISTS idx_results_prize   ON results(prize_name);
 CREATE INDEX IF NOT EXISTS idx_scrapelog_runat ON scrape_log(run_at DESC);
 `;
 
+const INTEGRITY_MIGRATION_SQL = `
+-- Giữ bản ghi đầy đủ nhất nếu database cũ đã có nhiều kỳ trùng ngày.
+DELETE FROM draws
+WHERE id IN (
+  SELECT id FROM (
+    SELECT d.id,
+           ROW_NUMBER() OVER (
+             PARTITION BY d.province, d.draw_date
+             ORDER BY (SELECT COUNT(*) FROM results r WHERE r.draw_id = d.id) DESC, d.id ASC
+           ) AS duplicate_rank
+    FROM draws d
+  )
+  WHERE duplicate_rank > 1
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_draws_prov_date_unique ON draws(province, draw_date);
+`;
+
 let _db;
 
 export function getDb() {
@@ -47,7 +64,9 @@ export function getDb() {
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
+    _db.pragma('busy_timeout = 5000');
     _db.exec(MIGRATION_SQL);
+    _db.transaction(() => _db.exec(INTEGRITY_MIGRATION_SQL))();
   }
   return _db;
 }

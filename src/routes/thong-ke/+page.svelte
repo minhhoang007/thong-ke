@@ -105,19 +105,23 @@
 </script>
 
 <!-- Header + bộ lọc -->
-<div class="flex items-start justify-between gap-4 mb-2 flex-wrap">
-  <h1 class="text-2xl font-bold text-gray-800">Thống kê tần suất</h1>
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">Phân tích dữ liệu</div>
+    <h1>Thống kê tần suất</h1>
+    <p>Khám phá phân bố, xu hướng và biến động của 100 cặp số theo từng khoảng thời gian.</p>
+  </div>
 
-  <div class="flex items-center gap-3 flex-wrap">
+  <div class="surface-card flex flex-wrap items-end gap-3 p-3 sm:p-4">
     <a href={exportUrl()} download
-      class="text-xs px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 shrink-0">
+      class="action-secondary shrink-0 !min-h-10 !py-2 text-emerald-700">
       ↓ Xuất CSV
     </a>
     <div class="flex items-center gap-2">
       <label for="period-select" class="text-sm text-gray-500 shrink-0">Thời gian:</label>
       <select id="period-select" value={selectedPeriod} onchange={onPeriodChange}
         disabled={!!selectedWindow}
-        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white
+        class="field-control !min-h-10 !py-2
                disabled:opacity-40 disabled:cursor-not-allowed">
         <option value="">Toàn bộ</option>
         {#each data.periods as p}
@@ -129,7 +133,7 @@
     <div class="flex items-center gap-2">
       <label for="prize-select" class="text-sm text-gray-500 shrink-0">Giải:</label>
       <select id="prize-select" value={selectedPrize} onchange={onPrizeChange}
-        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+        class="field-control !min-h-10 !py-2">
         {#each PRIZE_OPTIONS as o}
           <option value={o.value}>{o.label}</option>
         {/each}
@@ -139,16 +143,16 @@
 </div>
 
 <!-- Cửa sổ thời gian (N kỳ gần nhất) -->
-<div class="flex items-center gap-2 mb-3 flex-wrap">
+<div class="surface-card mb-5 flex flex-wrap items-center gap-2 p-3 sm:p-4">
   <span class="text-xs text-gray-400 shrink-0">Cửa sổ:</span>
   <button onclick={() => onWindowClick(null)}
-    class="text-xs px-3 py-1 rounded-full border transition-colors
+    class="min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors
            {!selectedWindow ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 hover:bg-gray-100'}">
     Tất cả
   </button>
   {#each WINDOWS as w}
     <button onclick={() => onWindowClick(w.value)}
-      class="text-xs px-3 py-1 rounded-full border transition-colors
+      class="min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors
              {selectedWindow === w.value ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-500 hover:bg-gray-100'}">
       {w.label}
     </button>
@@ -162,7 +166,7 @@
   </span>
 </div>
 
-<p class="text-sm text-gray-500 mb-6">
+<p class="mb-6 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
   {#if periodLabel}
     <span class="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium mr-1">
       {periodLabel}
@@ -177,7 +181,7 @@
 </p>
 
 {#if data.totalDraws === 0}
-  <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
+  <div class="surface-card card-pad text-center">
     <p class="text-gray-400 mb-3">
       {selectedPeriod || selectedPrize !== 'all'
         ? 'Không có dữ liệu với bộ lọc này.'
@@ -194,7 +198,7 @@
 {:else}
 
   <!-- Biểu đồ cột tần suất -->
-  <div class="bg-white border rounded-xl p-4 shadow-sm mb-4">
+  <div class="surface-card card-pad mb-4">
     <FrequencyChart grid={data.grid} title="Phân bố tần suất 00–99" />
   </div>
 
@@ -206,7 +210,7 @@
   </div>
 
   <!-- Bảng 10×10 -->
-  <div class="bg-white border rounded-xl p-4 shadow-sm overflow-x-auto mb-8">
+  <div class="surface-card card-pad scroll-shell mb-8">
     <table class="w-full border-collapse">
       <thead>
         <tr>
@@ -241,7 +245,7 @@
 
 <!-- ── Section Nóng / Lạnh ── -->
 {#if data.hotCold.recentN > 0}
-  <div class="border-t pt-6 mb-8">
+  <section class="surface-card card-pad mb-8">
     <div class="flex items-baseline gap-3 mb-1">
       <h2 class="text-lg font-bold text-gray-700">Nóng / Lạnh</h2>
       <span class="text-xs text-gray-400">{data.hotCold.recentN} kỳ gần nhất · {prizeLabel}</span>
@@ -251,7 +255,7 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 
       <!-- Lạnh nhất -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="px-4 py-3 border-b bg-blue-50 flex items-center gap-2">
           <span class="text-blue-700 font-semibold text-sm">❄ Lạnh nhất</span>
           <span class="text-xs text-blue-400 ml-auto">số kỳ chưa ra</span>
@@ -281,7 +285,7 @@
       </div>
 
       <!-- Nóng nhất -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="px-4 py-3 border-b bg-orange-50 flex items-center gap-2">
           <span class="text-orange-700 font-semibold text-sm">🔥 Nóng nhất</span>
           <span class="text-xs text-orange-400 ml-auto">số lần trong {data.hotCold.recentN} kỳ</span>
@@ -312,7 +316,7 @@
       </div>
 
     </div>
-  </div>
+  </section>
 {/if}
 
 <!-- ── Section co-occurrence ── -->
@@ -325,7 +329,7 @@
       </div>
     </div>
 
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden mt-3">
+    <div class="surface-card mt-3 overflow-hidden">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b bg-gray-50 text-xs text-gray-500 font-medium">
@@ -368,7 +372,7 @@
     <h2 class="text-lg font-bold text-gray-700 mb-1">Xu hướng theo tháng</h2>
     <p class="text-xs text-gray-400 mb-4">Top 5 cặp xuất hiện nhiều nhất — tính trên toàn bộ dữ liệu, tất cả giải</p>
 
-    <div class="bg-white border rounded-xl p-4 shadow-sm">
+    <div class="surface-card card-pad">
       <TrendChart data={data.trend} title="Số lần xuất hiện mỗi tháng" />
     </div>
   </div>
@@ -390,7 +394,7 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 
       <!-- Tăng -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="px-4 py-3 border-b bg-green-50 flex items-center gap-2">
           <span class="text-green-700 font-semibold text-sm">↑ Tăng mạnh nhất</span>
           <span class="text-xs text-green-400 ml-auto">7 kỳ / 30 kỳ</span>
@@ -425,7 +429,7 @@
       </div>
 
       <!-- Giảm -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="px-4 py-3 border-b bg-red-50 flex items-center gap-2">
           <span class="text-red-600 font-semibold text-sm">↓ Giảm mạnh nhất</span>
           <span class="text-xs text-red-400 ml-auto">7 kỳ / 30 kỳ</span>
@@ -478,7 +482,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
       <!-- Đầu -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="px-4 py-3 border-b bg-blue-50">
           <span class="font-semibold text-blue-700 text-sm">Đầu (chữ số hàng chục)</span>
         </div>
@@ -500,7 +504,7 @@
       </div>
 
       <!-- Đuôi -->
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
         <div class="px-4 py-3 border-b bg-violet-50">
           <span class="font-semibold text-violet-700 text-sm">Đuôi (chữ số hàng đơn vị)</span>
         </div>
@@ -556,7 +560,7 @@
     </div>
 
     <!-- Bar chart tổng 0–18 -->
-    <div class="bg-white border rounded-xl shadow-sm p-4">
+    <div class="surface-card card-pad">
       <p class="text-xs text-gray-500 mb-3">Tần suất từng giá trị tổng (0 → 18)</p>
       <div class="space-y-1.5">
         {#each data.tongGDB.tong as item}

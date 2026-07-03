@@ -21,11 +21,11 @@
 </script>
 
 {#if title}
-  <p class="text-sm font-semibold text-gray-600 mb-2">{title}</p>
+  <p class="mb-3 text-sm font-bold text-slate-700">{title}</p>
 {/if}
 
-<div class="overflow-x-auto">
-  <svg viewBox="0 0 {W} {H + BOTTOM}" class="w-full min-w-[600px]" style="height: 140px;">
+<div class="scroll-shell border-0 bg-slate-50/70 p-2 sm:p-3">
+  <svg viewBox="0 0 {W} {H + BOTTOM}" class="h-[135px] w-full min-w-[500px] sm:h-[150px]">
     {#each cells as cell, i}
       {@const barH = cell.count === 0 ? 2 : Math.max(3, (cell.count / maxCount) * H)}
       {@const x = i * STEP}

@@ -27,8 +27,9 @@
 
 <svelte:head><title>Dự Đoán — Times XS</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-1">Dự Đoán</h1>
-<p class="text-sm text-gray-500 mb-4">Điểm tổng hợp 5 tín hiệu + kiểm tra ngược chiến lược</p>
+<div class="page-heading">
+  <div><div class="eyebrow">Mô hình tham khảo</div><h1>Dự đoán</h1><p>Điểm tổng hợp 5 tín hiệu, đi kèm kiểm tra ngược minh bạch.</p></div>
+</div>
 
 {#if !ensemble}
   <div class="bg-yellow-50 border border-yellow-300 rounded p-4 text-yellow-800">
@@ -37,14 +38,12 @@
 {:else}
 
 <!-- Tab buttons -->
-<div class="flex gap-2 mb-6 border-b">
+<div class="segmented-control mb-6 w-fit max-w-full" role="tablist">
   {#each [['ensemble','Điểm Dự Đoán'],['backtest','Kiểm Tra Ngược']] as [id, label]}
     <button
       onclick={() => activeTab = id}
-      class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
-             {activeTab === id
-               ? 'border-blue-600 text-blue-600'
-               : 'border-transparent text-gray-500 hover:text-gray-700'}">
+      aria-selected={activeTab === id}
+      class:active={activeTab === id}>
       {label}
     </button>
   {/each}
@@ -54,12 +53,12 @@
 {#if activeTab === 'ensemble'}
 
   <!-- Disclaimer -->
-  <div class="bg-amber-50 border border-amber-300 rounded p-3 text-sm text-amber-800 mb-5">
+  <div class="warning-panel mb-5 text-sm">
     ⚠️ Xổ số là ngẫu nhiên — điểm này chỉ là tham khảo, không đảm bảo trúng thưởng.
   </div>
 
   <!-- 5 tín hiệu giải thích -->
-  <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-5 text-sm text-gray-700">
+  <div class="soft-panel mb-5 text-sm text-slate-700">
     <div class="font-semibold text-blue-800 mb-2">5 tín hiệu tạo thành điểm (thuyết "đến kỳ"):</div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
       <div>🔴 <b>Lô gan 35%</b> — kỳ liên tiếp chưa ra, càng lâu càng cao</div>
@@ -73,7 +72,7 @@
   <!-- Grid 10×10 -->
   <div class="mb-6">
     <h2 class="font-semibold text-gray-700 mb-2">Bảng điểm 00–99</h2>
-    <div class="overflow-x-auto">
+    <div class="scroll-shell bg-white p-2 sm:p-3">
       <div class="grid grid-cols-10 gap-0.5 min-w-[320px]" style="width: fit-content">
         {#each ensemble.grid as row}
           {#each row as cell}
@@ -100,8 +99,8 @@
   <!-- Top 10 bảng -->
   <div>
     <h2 class="font-semibold text-gray-700 mb-2">Top 10 cặp điểm cao nhất</h2>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm border-collapse">
+    <div class="scroll-shell">
+      <table class="data-table">
         <thead>
           <tr class="bg-gray-100 text-gray-600 text-left">
             <th class="px-3 py-2 w-8">#</th>
@@ -150,11 +149,11 @@
   {:else}
 
     <!-- Giải thích -->
-    <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-5 text-sm text-gray-700">
+    <div class="soft-panel mb-5 text-sm text-slate-700">
       <div class="font-semibold text-blue-800 mb-1">Kiểm tra ngược là gì?</div>
       <ul class="list-disc list-inside space-y-1">
-        <li>Với mỗi kỳ trong <b>{backtest.testN} kỳ gần nhất</b>: dùng 90 kỳ trước để dự đoán, kiểm tra kết quả thực</li>
-        <li>Chiến lược: chọn cặp có <b>lô gan cao nhất + ít ra nhất 30 kỳ</b> (ensemble đơn giản)</li>
+        <li>Với mỗi kỳ trong <b>{backtest.testN} kỳ gần nhất</b>: chỉ dùng dữ liệu có trước kỳ đó rồi kiểm tra kết quả thực</li>
+        <li>Chiến lược: dùng đúng <b>ensemble 5 tín hiệu + gap</b> như bảng khuyến nghị hiện tại</li>
         <li>So sánh với <b>chọn ngẫu nhiên</b> cùng số lượng cặp</li>
         <li>Hit = ít nhất 1 cặp dự đoán xuất hiện trong kết quả thực</li>
       </ul>
@@ -164,7 +163,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
       {#each backtest.hitRates as hr}
         {@const beat = hr.rate > hr.random}
-        <div class="rounded-lg border p-4 {beat ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'}">
+        <div class="metric-card !min-h-0 {beat ? 'border-green-200 bg-green-50/70' : ''}">
           <div class="text-2xl font-bold {beat ? 'text-green-700' : 'text-gray-600'}">
             {hr.rate}%
           </div>
@@ -180,15 +179,15 @@
     </div>
 
     <!-- Cảnh báo -->
-    <div class="bg-amber-50 border border-amber-300 rounded p-3 text-sm text-amber-800 mb-5">
+    <div class="warning-panel mb-5 text-sm">
       ⚠️ Kết quả tốt trong quá khứ không đảm bảo tương lai. Xổ số là ngẫu nhiên và số mẫu nhỏ (30 kỳ) chưa đủ kết luận thống kê.
     </div>
 
     <!-- Chi tiết từng kỳ -->
     <div>
       <h2 class="font-semibold text-gray-700 mb-2">Chi tiết {backtest.testN} kỳ kiểm tra</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm border-collapse">
+      <div class="scroll-shell">
+        <table class="data-table">
           <thead>
             <tr class="bg-gray-100 text-gray-600 text-left">
               <th class="px-3 py-2">Ngày</th>

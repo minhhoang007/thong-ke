@@ -24,9 +24,9 @@
 
   // ── State danh sách ──
   // Dùng $effect để sync từ server data (cần thiết khi invalidateAll() sau delete)
-  let draws      = $state(data.draws);
-  let total      = $state(data.total);
-  let hasMore    = $state(data.hasMore);
+  let draws      = $state([]);
+  let total      = $state(0);
+  let hasMore    = $state(false);
   let loadPage   = $state(2);
   let loadingMore = $state(false);
 
@@ -171,15 +171,15 @@
   }
 </script>
 
-<div class="flex items-center justify-between mb-4">
-  <h1 class="text-2xl font-bold text-gray-800">Lịch sử các kỳ xổ số</h1>
-  <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+<div class="page-heading">
+  <div><div class="eyebrow">Kho dữ liệu</div><h1>Lịch sử các kỳ xổ số</h1><p>Tìm kiếm, xem chi tiết và quản lý các kỳ đã lưu.</p></div>
+  <span class="status-pill">
     {total} kỳ
   </span>
 </div>
 
 <!-- Tìm kiếm nâng cao -->
-<div class="bg-white border rounded-xl shadow-sm mb-4 overflow-hidden">
+<div class="surface-card mb-5 overflow-hidden">
   <details>
     <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-gray-700
                     hover:bg-gray-50 select-none flex items-center gap-2 list-none">
@@ -194,20 +194,20 @@
     <div class="px-4 pb-4 border-t">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
         <div>
-          <label class="text-xs text-gray-500 block mb-1">Từ ngày</label>
-          <input type="date" bind:value={searchFrom}
-            class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <label for="search-from" class="text-xs text-gray-500 block mb-1">Từ ngày</label>
+          <input id="search-from" type="date" bind:value={searchFrom}
+            class="field-control" />
         </div>
         <div>
-          <label class="text-xs text-gray-500 block mb-1">Đến ngày</label>
-          <input type="date" bind:value={searchTo}
-            class="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <label for="search-to" class="text-xs text-gray-500 block mb-1">Đến ngày</label>
+          <input id="search-to" type="date" bind:value={searchTo}
+            class="field-control" />
         </div>
         <div>
-          <label class="text-xs text-gray-500 block mb-1">Cặp số kết thúc (00–99)</label>
-          <input type="text" inputmode="numeric" bind:value={searchPair} maxlength="2"
+          <label for="search-pair" class="text-xs text-gray-500 block mb-1">Cặp số kết thúc (00–99)</label>
+          <input id="search-pair" type="text" inputmode="numeric" bind:value={searchPair} maxlength="2"
             placeholder="vd: 73"
-            class="w-full border rounded-lg px-2 py-1.5 text-sm font-mono
+            class="field-control mono-number
                    focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
       </div>
@@ -238,13 +238,13 @@
 <!-- Kết quả tìm kiếm -->
 {#if searchResults !== null}
   {#if searchResults.length === 0}
-    <div class="bg-white border rounded-xl p-6 text-center shadow-sm">
+    <div class="surface-card card-pad text-center">
       <p class="text-gray-400 text-sm">Không tìm thấy kỳ nào khớp với điều kiện.</p>
     </div>
   {:else}
     <div class="space-y-2 mb-4">
       {#each searchResults as draw (draw.id)}
-        <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="surface-card overflow-hidden">
           <div class="flex items-center gap-4 px-4 py-3">
             <button onclick={() => toggleExpand(draw.id)} class="flex-1 flex items-center gap-4 text-left min-w-0">
               <span class="text-base font-mono font-semibold text-blue-700 w-28 shrink-0">{draw.draw_date}</span>
@@ -282,14 +282,14 @@
     </div>
   {/if}
 {:else if draws.length === 0}
-  <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
+  <div class="surface-card card-pad text-center">
     <p class="text-gray-400 mb-3">Chưa có kỳ nào được nhập.</p>
     <a href="/nhap-lieu" class="text-blue-600 hover:underline text-sm">Nhập kỳ đầu tiên →</a>
   </div>
 {:else}
   <div class="space-y-2">
     {#each draws as draw (draw.id)}
-      <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div class="surface-card overflow-hidden">
 
         <!-- Hàng tóm tắt -->
         <div class="flex items-center gap-4 px-4 py-3">

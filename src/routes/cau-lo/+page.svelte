@@ -19,11 +19,12 @@
   }
 </script>
 
-<h1 class="text-2xl font-bold mb-2 text-gray-800">Cầu Lô</h1>
-<p class="text-sm text-gray-500 mb-6">{data.totalDraws} kỳ trong dữ liệu</p>
+<div class="page-heading">
+  <div><div class="eyebrow">Chuỗi xuất hiện</div><h1>Cầu Lô</h1><p>{data.totalDraws} kỳ dữ liệu · Theo dõi các cặp đang xuất hiện liên tiếp.</p></div>
+</div>
 
 <!-- Giải thích -->
-<div class="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-6 text-sm">
+<div class="soft-panel mb-6 text-sm">
   <p class="font-semibold text-teal-800 mb-1">Cầu lô là gì?</p>
   <p class="text-teal-700 mb-2">
     Một cặp số được gọi là <strong>đang cầu</strong> khi nó xuất hiện trong nhiều kỳ liên tiếp tính từ kỳ xổ mới nhất.
@@ -37,19 +38,19 @@
 </div>
 
 {#if data.totalDraws === 0}
-  <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
+  <div class="surface-card card-pad text-center">
     <p class="text-gray-400 mb-3">Chưa có dữ liệu.</p>
     <a href="/nhap-lieu" class="text-blue-600 hover:underline text-sm">Nhập kết quả đầu tiên →</a>
   </div>
 {:else}
 
   <!-- Tóm tắt -->
-  <div class="grid grid-cols-2 gap-4 mb-6 md:grid-cols-4">
-    <div class="rounded-xl p-4 bg-teal-100 text-teal-800 shadow-sm">
+  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="metric-card border-teal-100 bg-teal-50 text-teal-800">
       <p class="text-xs font-medium">Đang cầu (≥2 kỳ)</p>
       <p class="text-3xl font-bold mt-1">{data.active.length}</p>
     </div>
-    <div class="rounded-xl p-4 bg-red-100 text-red-800 shadow-sm">
+    <div class="metric-card border-red-100 bg-red-50 text-red-800">
       <p class="text-xs font-medium">Cầu dài nhất</p>
       {#if data.active[0]}
         <p class="text-3xl font-bold font-mono mt-1">{data.active[0].pair}</p>
@@ -58,11 +59,11 @@
         <p class="text-2xl font-bold mt-1">—</p>
       {/if}
     </div>
-    <div class="rounded-xl p-4 bg-orange-100 text-orange-800 shadow-sm">
+    <div class="metric-card border-orange-100 bg-orange-50 text-orange-800">
       <p class="text-xs font-medium">Cầu ≥ 3 kỳ</p>
       <p class="text-3xl font-bold mt-1">{data.active.filter(a => a.streak >= 3).length}</p>
     </div>
-    <div class="rounded-xl p-4 bg-yellow-100 text-yellow-800 shadow-sm">
+    <div class="metric-card border-amber-100 bg-amber-50 text-amber-800">
       <p class="text-xs font-medium">Cầu ≥ 5 kỳ</p>
       <p class="text-3xl font-bold mt-1">{data.active.filter(a => a.streak >= 5).length}</p>
     </div>
@@ -78,7 +79,7 @@
   </div>
 
   <!-- Grid 10×10 -->
-  <div class="bg-white border rounded-xl p-4 shadow-sm overflow-x-auto mb-8">
+  <div class="surface-card card-pad scroll-shell mb-8">
     <p class="text-xs text-gray-400 mb-3">Lưới 10×10 — màu thể hiện số kỳ liên tiếp đang cầu</p>
     <table class="border-collapse w-full">
       <thead>
@@ -111,11 +112,11 @@
 
   <!-- Danh sách cầu đang chạy -->
   {#if data.active.length === 0}
-    <div class="bg-white border rounded-xl p-6 shadow-sm text-center">
+    <div class="surface-card card-pad text-center">
       <p class="text-gray-400 text-sm">Không có cặp nào đang cầu (ra ≥ 2 kỳ liên tiếp).</p>
     </div>
   {:else}
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+    <div class="surface-card overflow-hidden">
       <div class="px-4 py-3 border-b bg-teal-50 flex items-center justify-between">
         <span class="font-semibold text-teal-700 text-sm">Các cặp đang cầu</span>
         <span class="text-xs text-teal-500">{data.active.length} cặp · sắp xếp theo cầu dài nhất</span>

@@ -49,10 +49,10 @@
 
 <svelte:head><title>Trạng thái dữ liệu — Times</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-2 text-gray-800">Trạng thái dữ liệu</h1>
-<p class="text-sm text-gray-500 mb-5">
-  Theo dõi việc cào kết quả Miền Bắc tự động và các ngày bị hụt dữ liệu (30 ngày gần nhất).
-</p>
+<div class="page-heading">
+  <div><div class="eyebrow">Giám sát hệ thống</div><h1>Trạng thái dữ liệu</h1><p>Theo dõi đồng bộ tự động và các ngày bị hụt dữ liệu trong 30 ngày gần nhất.</p></div>
+  <span class="status-pill {data.missing.length === 0 ? 'status-pill-success' : 'status-pill-warning'}">{data.missing.length === 0 ? 'Dữ liệu đầy đủ' : `${data.missing.length} ngày thiếu`}</span>
+</div>
 
 {#if message}
   <div class="mb-4 rounded-lg border px-4 py-2.5 text-sm
@@ -62,7 +62,7 @@
 {/if}
 
 <!-- Ngày thiếu -->
-<div class="bg-white border rounded-xl shadow-sm mb-6 overflow-hidden">
+<div class="surface-card mb-6 overflow-hidden">
   <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between gap-3">
     <div>
       <h2 class="font-semibold text-gray-700">Ngày thiếu dữ liệu</h2>
@@ -71,7 +71,7 @@
       </p>
     </div>
     <button onclick={backfillAll} disabled={busy || missingPast.length === 0}
-      class="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium
+      class="action-primary shrink-0
              hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
       Cào bù tất cả
     </button>
@@ -98,7 +98,7 @@
 </div>
 
 <!-- Nhật ký cào -->
-<div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+<div class="surface-card overflow-hidden">
   <div class="px-4 py-3 border-b bg-gray-50">
     <h2 class="font-semibold text-gray-700">Nhật ký cào gần nhất</h2>
     <p class="text-xs text-gray-400 mt-0.5">60 lần gần nhất</p>
@@ -107,8 +107,8 @@
   {#if data.logs.length === 0}
     <p class="px-4 py-6 text-center text-sm text-gray-400">Chưa có nhật ký nào.</p>
   {:else}
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm border-collapse">
+    <div class="scroll-shell rounded-none border-x-0 border-b-0">
+      <table class="data-table">
         <thead>
           <tr class="bg-gray-50 text-gray-500 text-left text-xs">
             <th class="px-3 py-2">Thời điểm (UTC)</th>

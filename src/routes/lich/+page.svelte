@@ -86,21 +86,21 @@
   );
 </script>
 
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-bold text-gray-800">Lịch Xổ Số</h1>
+<div class="page-heading !items-center">
+  <div><div class="eyebrow">Theo dòng thời gian</div><h1>Lịch xổ số</h1><p>Xem nhanh giải đặc biệt và mật độ xuất hiện theo tháng.</p></div>
   <div class="flex items-center gap-2">
     <button onclick={prevMonth}
-      class="px-3 py-1.5 rounded-lg border text-sm text-gray-600 hover:bg-gray-50">‹</button>
+      class="action-secondary !h-10 !min-h-10 !w-10 !p-0" aria-label="Tháng trước">‹</button>
     <span class="text-base font-semibold text-gray-700 min-w-[130px] text-center">
       {MONTHS[data.month]} {data.year}
     </span>
     <button onclick={nextMonth}
-      class="px-3 py-1.5 rounded-lg border text-sm text-gray-600 hover:bg-gray-50">›</button>
+      class="action-secondary !h-10 !min-h-10 !w-10 !p-0" aria-label="Tháng sau">›</button>
   </div>
 </div>
 
 <!-- Lưới calendar -->
-<div class="bg-white border rounded-xl shadow-sm overflow-hidden mb-4">
+<div class="surface-card mb-4 overflow-hidden">
   <!-- Header ngày trong tuần -->
   <div class="grid grid-cols-7 border-b">
     {#each DAYS as d, i}
@@ -120,9 +120,9 @@
       {@const isSelected = ds === selectedDate}
       {@const hasDraw = draws.length > 0}
 
-      <div
+      <button type="button" disabled={!day}
         onclick={() => day && selectDay(day)}
-        class="min-h-[72px] p-1.5 relative transition-colors
+        class="min-h-[72px] p-1.5 relative transition-colors text-left w-full disabled:cursor-default
                {day ? 'cursor-pointer hover:bg-gray-50' : 'bg-gray-50/50'}
                {isSelected ? 'bg-amber-50 ring-inset ring-2 ring-amber-400' : ''}
                {i % 7 === 6 && day ? 'bg-red-50/30' : ''}">
@@ -157,7 +157,7 @@
             <div class="text-[10px] text-gray-300 mt-1">—</div>
           {/if}
         {/if}
-      </div>
+      </button>
     {/each}
   </div>
 </div>
@@ -181,7 +181,7 @@
 
 <!-- Cặp lặp lại trong tháng -->
 {#if topPairs.length > 0}
-  <div class="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
+  <div class="soft-panel mb-5">
     <p class="text-xs font-semibold text-blue-700 mb-2">
       Cặp xuất hiện nhiều lần tháng {data.month}/{data.year}
     </p>
@@ -199,7 +199,7 @@
 
 <!-- Chi tiết ngày được chọn -->
 {#if selectedDate}
-  <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+  <div class="surface-card overflow-hidden">
     <div class="px-4 py-3 border-b bg-amber-50 flex items-center justify-between">
       <span class="font-semibold text-amber-800">
         Kết quả ngày {selectedDate}
@@ -248,7 +248,7 @@
     </div>
   </div>
 {:else}
-  <div class="mt-4 bg-white border rounded-xl p-6 text-center">
+  <div class="surface-card card-pad mt-4 text-center">
     <p class="text-gray-400 text-sm mb-2">Chưa có dữ liệu tháng {data.month}/{data.year}.</p>
     <a href="/nhap-lieu" class="text-blue-600 hover:underline text-sm">Nhập hoặc scrape dữ liệu →</a>
   </div>

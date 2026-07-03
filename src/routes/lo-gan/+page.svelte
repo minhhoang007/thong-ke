@@ -24,10 +24,12 @@
   let displayList = $derived(showAll ? data.list : data.list.slice(0, 20));
 </script>
 
-<h1 class="text-2xl font-bold mb-2 text-gray-800">Lô Gan</h1>
+<div class="page-heading">
+  <div><div class="eyebrow">Theo dõi khoảng cách</div><h1>Lô Gan</h1><p>{data.totalDraws} kỳ dữ liệu · Xếp hạng thời gian chưa xuất hiện của 100 cặp số.</p></div>
+</div>
 
 <!-- Mô tả -->
-<div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 text-sm text-indigo-800">
+<div class="soft-panel mb-6 text-sm text-indigo-900">
   <p class="font-semibold mb-1">Lô gan là gì?</p>
   <p class="leading-relaxed">
     <strong>Lô gan</strong> là số kỳ xổ số liên tiếp mà một cặp số (00–99) chưa xuất hiện, tính từ kỳ gần nhất đến nay.
@@ -42,31 +44,31 @@
 </div>
 
 {#if data.totalDraws === 0}
-  <div class="bg-white border rounded-xl p-8 text-center shadow-sm">
+  <div class="surface-card card-pad text-center">
     <p class="text-gray-400 mb-3">Chưa có dữ liệu.</p>
     <a href="/nhap-lieu" class="text-blue-600 hover:underline text-sm">Nhập kết quả đầu tiên →</a>
   </div>
 {:else}
 
   <!-- Tổng quan nhanh -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-    <div class="bg-white border rounded-xl p-4 shadow-sm">
+  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="metric-card">
       <p class="text-xs text-gray-500">Tổng kỳ dữ liệu</p>
       <p class="text-2xl font-bold text-gray-800 mt-1">{data.totalDraws}</p>
     </div>
-    <div class="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm">
+    <div class="metric-card border-red-100 bg-red-50/70">
       <p class="text-xs text-red-600">Gan cao nhất</p>
       <p class="text-2xl font-bold text-red-700 mt-1">{data.list[0]?.pair ?? '—'}</p>
       <p class="text-xs text-red-500 mt-0.5">{data.list[0]?.gan ?? 0} kỳ chưa ra</p>
     </div>
-    <div class="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm">
+    <div class="metric-card border-emerald-100 bg-emerald-50/70">
       <p class="text-xs text-green-600">Vừa ra gần nhất</p>
       <p class="text-2xl font-bold text-green-700 mt-1">
         {data.list.find(i => i.gan === 0)?.pair ?? '—'}
       </p>
       <p class="text-xs text-green-500 mt-0.5">Gan = 0</p>
     </div>
-    <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 shadow-sm">
+    <div class="metric-card border-orange-100 bg-orange-50/70">
       <p class="text-xs text-orange-600">Cặp chưa bao giờ ra</p>
       <p class="text-2xl font-bold text-orange-700 mt-1">
         {data.list.filter(i => i.lastDate === null).length}
@@ -76,7 +78,7 @@
   </div>
 
   <!-- Lưới 10×10 -->
-  <div class="bg-white border rounded-xl p-4 shadow-sm mb-6 overflow-x-auto">
+  <div class="surface-card card-pad scroll-shell mb-6">
     <h2 class="text-sm font-semibold text-gray-600 mb-3">Bảng 10×10 — Gan (số kỳ chưa ra)</h2>
     <table class="w-full border-collapse">
       <thead>
@@ -106,7 +108,7 @@
   </div>
 
   <!-- Bảng xếp hạng -->
-  <div class="bg-white border rounded-xl shadow-sm overflow-hidden mb-4">
+  <div class="surface-card mb-4 overflow-hidden">
     <div class="px-4 py-3 border-b bg-gray-50">
       <h2 class="font-semibold text-gray-700">Xếp hạng lô gan — cao nhất trước</h2>
       <p class="text-xs text-gray-400 mt-0.5">Cặp có gan cao nhất là ứng viên "sắp ra" theo kinh nghiệm dân gian</p>

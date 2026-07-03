@@ -1,5 +1,6 @@
 <script>
   import { browser } from '$app/environment';
+  import { page } from '$app/state';
   import favicon from '$lib/assets/favicon.svg';
   import '../app.css';
 
@@ -40,6 +41,8 @@
 
   function toggleDesk(label) { openDesk = openDesk === label ? null : label; }
   function closeAll() { openDesk = null; menuOpen = false; }
+  function isActive(href) { return href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href); }
+  function groupActive(item) { return item.children?.some((child) => isActive(child.href)); }
 </script>
 
 <svelte:head>
@@ -52,28 +55,34 @@
   <link rel="apple-touch-icon" href="/icon.svg" />
 </svelte:head>
 
-<nav class="bg-blue-800 text-white shadow-md relative z-20">
-  <div class="px-4 py-3 flex items-center justify-between">
+<nav class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 text-slate-700 shadow-[0_8px_30px_rgba(31,49,90,0.06)] backdrop-blur-xl">
+  <div class="app-container flex h-16 items-center justify-between gap-5">
     <a href="/" onclick={closeAll}
-      class="font-bold text-xl tracking-wide shrink-0 hover:text-blue-200">
-      Times
+      class="group flex shrink-0 items-center gap-2.5" aria-label="Times XS — Trang chủ">
+      <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm font-black text-white shadow-lg shadow-blue-200">T</span>
+      <span class="leading-tight">
+        <span class="block text-base font-extrabold tracking-tight text-slate-900">Times XS</span>
+        <span class="hidden text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400 sm:block">Dữ liệu & thống kê</span>
+      </span>
     </a>
 
     <!-- Desktop links -->
-    <div class="hidden md:flex gap-1 items-center text-sm">
+    <div class="hidden lg:flex gap-1 items-center text-sm">
       {#each NAV as item}
         {#if item.children}
           <div class="relative">
             <button onclick={() => toggleDesk(item.label)}
-              class="px-3 py-2 rounded hover:bg-blue-700 flex items-center gap-1 transition-colors">
+              class="flex items-center gap-1.5 rounded-xl px-3.5 py-2 font-semibold transition-colors
+                     {groupActive(item) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}">
               {item.label}
-              <span class="text-[10px] opacity-70">{openDesk === item.label ? '▲' : '▼'}</span>
+              <svg class="h-3.5 w-3.5 transition-transform {openDesk === item.label ? 'rotate-180' : ''}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
             </button>
             {#if openDesk === item.label}
-              <div class="absolute right-0 mt-1 w-44 bg-white text-gray-700 rounded-lg shadow-lg py-1 z-30">
+              <div class="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-2xl shadow-slate-300/50">
                 {#each item.children as c}
                   <a href={c.href} onclick={closeAll}
-                    class="block px-4 py-2 text-sm hover:bg-blue-50 hover:text-blue-700">
+                    class="block rounded-xl px-3 py-2.5 text-sm font-medium transition-colors
+                           {isActive(c.href) ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 hover:text-slate-950'}">
                     {c.label}
                   </a>
                 {/each}
@@ -82,14 +91,15 @@
           </div>
         {:else}
           <a href={item.href} onclick={closeAll}
-            class="px-3 py-2 rounded hover:bg-blue-700 transition-colors">{item.label}</a>
+            class="rounded-xl px-3.5 py-2 font-semibold transition-colors
+                   {isActive(item.href) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}">{item.label}</a>
         {/if}
       {/each}
     </div>
 
     <!-- Hamburger button (mobile only) -->
     <button onclick={() => menuOpen = !menuOpen}
-      class="md:hidden p-2 rounded hover:bg-blue-700 transition-colors"
+      class="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 lg:hidden"
       aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}>
       {#if menuOpen}
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,23 +115,23 @@
 
   <!-- Mobile dropdown -->
   {#if menuOpen}
-    <div class="md:hidden border-t border-blue-700 py-2">
+    <div class="app-container border-t border-slate-100 py-3 lg:hidden">
       {#each NAV as item}
         {#if item.children}
-          <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-blue-300">
+          <div class="px-2 pb-1 pt-3 text-[10px] font-extrabold uppercase tracking-[.16em] text-slate-400">
             {item.label}
           </div>
           {#each item.children as c}
             <a href={c.href} onclick={closeAll}
-              class="block px-6 py-3 text-base border-b border-blue-700/30 last:border-0
-                     opacity-90 hover:opacity-100 hover:bg-blue-700/40 transition-colors">
+              class="my-0.5 block rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors
+                     {isActive(c.href) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}">
               {c.label}
             </a>
           {/each}
         {:else}
           <a href={item.href} onclick={closeAll}
-            class="block px-3 py-3 text-base font-medium border-b border-blue-700/30
-                   opacity-90 hover:opacity-100 hover:bg-blue-700/40 transition-colors">
+            class="my-0.5 block rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors
+                   {isActive(item.href) ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}">
             {item.label}
           </a>
         {/if}
@@ -132,10 +142,14 @@
 
 <!-- Backdrop đóng dropdown desktop khi bấm ra ngoài -->
 {#if openDesk}
-  <button class="fixed inset-0 z-10 cursor-default hidden md:block" aria-label="Đóng menu"
+  <button class="fixed inset-0 z-30 hidden cursor-default lg:block" aria-label="Đóng menu"
     onclick={closeAll}></button>
 {/if}
 
-<main class="p-4 md:p-6 max-w-5xl mx-auto">
+<main class="app-container min-h-[calc(100vh-8rem)] py-5 sm:py-7 lg:py-9">
   {@render children()}
 </main>
+
+<footer class="border-t border-slate-200/80 bg-white/60 py-5 text-center text-xs text-slate-400">
+  <div class="app-container">Times XS · Dữ liệu thống kê chỉ mang tính tham khảo</div>
+</footer>

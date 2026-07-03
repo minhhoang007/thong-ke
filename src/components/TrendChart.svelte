@@ -30,15 +30,15 @@
 </script>
 
 {#if title}
-  <p class="text-sm font-semibold text-gray-600 mb-2">{title}</p>
+  <p class="mb-3 text-sm font-bold text-slate-700">{title}</p>
 {/if}
 
 {#if periods.length < 2}
   <p class="text-sm text-gray-400 text-center py-6">Cần ít nhất 2 tháng dữ liệu để hiển thị xu hướng.</p>
 {:else}
 
-<div class="overflow-x-auto">
-  <svg viewBox="0 0 {W} {H}" class="w-full min-w-[500px]" style="height:175px;">
+<div class="scroll-shell border-0 bg-slate-50/70 p-2 sm:p-3">
+  <svg viewBox="0 0 {W} {H}" class="h-[170px] w-full min-w-[460px] sm:h-[190px]">
 
     <!-- Grid ngang -->
     {#each [0, 0.5, 1] as t}

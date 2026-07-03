@@ -22,11 +22,13 @@
 
 <svelte:head><title>Khuyến nghị hôm nay — Times</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-1 text-gray-800">Khuyến nghị hôm nay</h1>
-<p class="text-sm text-gray-500 mb-4">
+<div class="page-heading">
+  <div><div class="eyebrow">Danh sách ưu tiên</div><h1>Khuyến nghị hôm nay</h1><p>
   Tổng hợp <b>ensemble (5 tín hiệu)</b> + <b>phân tích quá hạn (gap)</b> thành một danh sách gợi ý duy nhất
   {#if data.today}<span class="text-gray-400">· cập nhật cho {data.today}</span>{/if}
-</p>
+  </p></div>
+  {#if rec}<span class="status-pill">{rec.totalDraws} kỳ phân tích</span>{/if}
+</div>
 
 {#if !rec}
   <div class="bg-yellow-50 border border-yellow-300 rounded p-4 text-yellow-800">
@@ -34,13 +36,13 @@
   </div>
 {:else}
 
-  <div class="bg-amber-50 border border-amber-300 rounded p-3 text-sm text-amber-800 mb-5">
+  <div class="warning-panel mb-5 text-sm">
     ⚠️ Xổ số là ngẫu nhiên — đây chỉ là gợi ý tham khảo từ thống kê, không đảm bảo trúng thưởng.
   </div>
 
   <!-- Độ tin cậy từ backtest -->
   {#if confidence}
-    <div class="rounded-lg border p-4 mb-5 {confidence.beat ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'}">
+    <div class="surface-card card-pad mb-5 {confidence.beat ? 'border-green-200 bg-green-50/70' : ''}">
       <div class="text-sm text-gray-600">Độ tin cậy (kiểm tra ngược {confidence.testN} kỳ, chỉ tiêu Top 5)</div>
       <div class="flex items-baseline gap-2 mt-1">
         <span class="text-2xl font-bold {confidence.beat ? 'text-green-700' : 'text-gray-600'}">{confidence.rate}%</span>
@@ -54,9 +56,9 @@
   {/if}
 
   <!-- Top picks -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+  <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
     {#each rec.picks as p}
-      <div class="bg-white border rounded-xl p-3 shadow-sm text-center">
+      <div class="metric-card !min-h-0 text-center">
         <div class="font-mono text-3xl font-bold text-gray-800">{p.pair}</div>
         <div class="mt-1 inline-block px-2 py-0.5 rounded text-xs font-bold {scoreBg(p.score)}">
           {p.score} điểm
@@ -70,12 +72,12 @@
   </div>
 
   <!-- Bảng chi tiết + lý do -->
-  <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+  <div class="surface-card overflow-hidden">
     <div class="px-4 py-3 border-b bg-gray-50">
       <h2 class="font-semibold text-gray-700">Chi tiết & lý do</h2>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm border-collapse">
+    <div class="scroll-shell rounded-none border-x-0 border-b-0">
+      <table class="data-table">
         <thead>
           <tr class="bg-gray-50 text-gray-500 text-left text-xs">
             <th class="px-3 py-2">#</th>

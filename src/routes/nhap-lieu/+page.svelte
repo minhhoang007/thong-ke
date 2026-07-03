@@ -19,7 +19,7 @@
   let activeTab = $state('manual'); // 'manual' | 'batch'
 
   // ── State nhập tay ──────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
   let draw_date = $state(today);
   let prizes    = $state(Object.fromEntries(PRIZE_CONFIG.map(p => [p.key, Array(p.count).fill('')])));
   let manualStatus  = $state('idle');
@@ -91,7 +91,7 @@
 
   // ── State Scrape hàng loạt ────────────────────────────────────────
   const MAX_BATCH_DAYS = 100;
-  let batchFromDate   = $state((() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); })());
+  let batchFromDate   = $state(new Date(Date.now() + 7 * 3600_000 - 6 * 86400_000).toISOString().slice(0, 10));
   let batchToDate     = $state(today);
   let batchStatus     = $state('idle'); // 'idle' | 'running' | 'done'
   let batchItems      = $state([]);    // { date, status: 'pending'|'saving'|'saved'|'skipped'|'error', message? }
@@ -112,7 +112,7 @@
     const from = new Date(batchFromDate);
     const to   = new Date(batchToDate);
     const diff = Math.round((to - from) / 86400000) + 1;
-    return Math.min(diff, MAX_BATCH_DAYS);
+    return Number.isFinite(diff) ? Math.max(0, Math.min(diff, MAX_BATCH_DAYS)) : 0;
   }
 
   let batchDone   = $derived(batchItems.filter(i => i.status !== 'pending' && i.status !== 'saving').length);
@@ -123,6 +123,7 @@
   async function handleBatchScrape() {
     batchAborted = false;
     const dates  = generateDateRange(batchFromDate, batchToDate);
+    if (dates.length === 0) return;
     batchItems   = dates.map(date => ({ date, status: 'pending' }));
     batchStatus  = 'running';
 
@@ -169,26 +170,24 @@
   }
 
   function quickBackfill100() {
-    const d = new Date();
-    d.setDate(d.getDate() - (MAX_BATCH_DAYS - 1));
-    batchFromDate = d.toISOString().slice(0, 10);
+    batchFromDate = new Date(Date.now() + 7 * 3600_000 - (MAX_BATCH_DAYS - 1) * 86400_000).toISOString().slice(0, 10);
     batchToDate   = today;
     handleBatchScrape();
   }
 </script>
 
-<h1 class="text-2xl font-bold mb-6 text-gray-800">Nhập kết quả xổ số</h1>
+<div class="page-heading">
+  <div><div class="eyebrow">Quản trị dữ liệu</div><h1>Nhập kết quả xổ số</h1><p>Nhập thủ công một kỳ hoặc đồng bộ nhiều ngày từ nguồn dữ liệu.</p></div>
+</div>
 
 <!-- Tab chọn chế độ -->
-<div class="flex gap-2 mb-6 flex-wrap">
+<div class="segmented-control mb-6 w-fit max-w-full" role="tablist">
   <button onclick={() => activeTab = 'manual'}
-    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-           {activeTab === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+    aria-selected={activeTab === 'manual'} class:active={activeTab === 'manual'}>
     Nhập tay
   </button>
   <button onclick={() => activeTab = 'batch'}
-    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-           {activeTab === 'batch' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+    aria-selected={activeTab === 'batch'} class:active={activeTab === 'batch'}>
     Scrape hàng loạt
   </button>
 </div>
@@ -204,16 +203,16 @@
   {/if}
 
   <form onsubmit={(e) => { e.preventDefault(); handleManualSubmit(); }}>
-    <div class="bg-white border rounded-xl p-6 shadow-sm mb-4">
+    <div class="surface-card card-pad mb-4">
 
       <div class="flex gap-4 mb-4 flex-wrap items-end">
         <div>
           <label for="draw_date" class="block text-sm font-medium text-gray-700 mb-1">Ngày xổ</label>
           <input id="draw_date" type="date" bind:value={draw_date} required
-            class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            class="field-control" />
         </div>
         <button type="button" onclick={handleScrape} disabled={scrapeStatus === 'loading'}
-          class="px-4 py-2 rounded-lg text-sm font-medium border border-indigo-300 text-indigo-700
+          class="action-secondary text-indigo-700
                  hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
           {scrapeStatus === 'loading' ? '⏳ Đang lấy...' : '⚡ Lấy kết quả tự động'}
         </button>
@@ -239,7 +238,7 @@
             </span>
             <div class="flex gap-2 flex-wrap">
               {#each prizes[prize.key] as _, i}
-                <input type="text" inputmode="numeric" value={prizes[prize.key][i]}
+                <input type="text" inputmode="numeric" value={prizes[prize.key][i]} required
                   oninput={(e) => handleInput(e, prize.key, i, prize.digits)}
                   maxlength={prize.digits} placeholder={'_'.repeat(prize.digits)}
                   class="border rounded-lg text-center font-mono text-base focus:outline-none focus:ring-2 focus:ring-blue-400
@@ -253,7 +252,7 @@
     </div>
 
     <button type="submit" disabled={manualStatus === 'loading'}
-      class="w-full py-3 rounded-xl font-semibold text-white transition-colors
+      class="action-primary w-full
              {manualStatus === 'loading' ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}">
       {manualStatus === 'loading' ? 'Đang lưu...' : 'Lưu kết quả'}
     </button>
@@ -262,7 +261,7 @@
 <!-- ───── TAB SCRAPE HÀNG LOẠT ───── -->
 {:else}
 
-<div class="bg-white border rounded-xl p-6 shadow-sm mb-4">
+<div class="surface-card card-pad mb-4">
   <h2 class="font-semibold text-gray-800 mb-1">Scrape kết quả tự động nhiều ngày</h2>
   <p class="text-sm text-gray-500 mb-5">
     Tự động lấy dữ liệu từ web và lưu vào database. Ngày đã có sẽ bỏ qua.
@@ -272,24 +271,24 @@
   {#if batchStatus === 'idle'}
     <div class="flex gap-4 flex-wrap items-end mb-5">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
-        <input type="date" bind:value={batchFromDate} max={batchToDate}
-          class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        <label for="batch-from" class="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
+        <input id="batch-from" type="date" bind:value={batchFromDate} max={batchToDate}
+          class="field-control" />
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
-        <input type="date" bind:value={batchToDate} min={batchFromDate} max={today}
-          class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        <label for="batch-to" class="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
+        <input id="batch-to" type="date" bind:value={batchToDate} min={batchFromDate} max={today}
+          class="field-control" />
       </div>
     </div>
 
     <div class="flex gap-2 flex-wrap">
-      <button onclick={handleBatchScrape}
-        class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+      <button onclick={handleBatchScrape} disabled={batchDayCount() === 0}
+        class="action-primary">
         Bắt đầu scrape {batchDayCount()} ngày
       </button>
       <button onclick={quickBackfill100}
-        class="px-6 py-2.5 border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-lg text-sm font-medium transition-colors">
+        class="action-secondary text-indigo-700">
         ⚡ {MAX_BATCH_DAYS} ngày gần nhất
       </button>
     </div>
